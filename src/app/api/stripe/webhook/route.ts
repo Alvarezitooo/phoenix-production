@@ -48,11 +48,14 @@ export async function POST(request: Request) {
       });
 
       if (user) {
+        const currentPeriodEndUnix = (subscription as Stripe.Subscription & { current_period_end?: number }).current_period_end;
+        const currentPeriodEndValue = typeof currentPeriodEndUnix === 'number' ? new Date(currentPeriodEndUnix * 1000) : null;
+
         await prisma.user.update({
           where: { id: user.id },
           data: {
             subscriptionStatus: subscription.status === 'active' ? 'ACTIVE' : 'PAST_DUE',
-            currentPeriodEnd: subscription.current_period_end ? new Date(subscription.current_period_end * 1000) : null,
+            currentPeriodEnd: currentPeriodEndValue,
           },
         });
       }
@@ -70,7 +73,8 @@ export async function POST(request: Request) {
           where: { id: user.id },
           data: {
             subscriptionStatus: 'CANCELED',
-            currentPeriodEnd: subscription.ended_at ? new Date(subscription.ended_at * 1000) : null,
+            currentPeriodEnd:
+              typeof subscription.ended_at === 'number' ? new Date(subscription.ended_at * 1000) : null,
           },
         });
       }

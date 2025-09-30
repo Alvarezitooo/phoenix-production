@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
 export function hashCacheKey(parts: Record<string, unknown>) {
@@ -23,15 +24,16 @@ export async function setCachedResponse<T = unknown>(
   response: T,
   ttlSeconds?: number,
 ) {
+  const jsonResponse = response as Prisma.InputJsonValue;
   return prisma.aiCache.upsert({
     where: { cacheKey },
     update: {
-      response,
+      response: jsonResponse,
       expiresAt: ttlSeconds ? new Date(Date.now() + ttlSeconds * 1000) : null,
     },
     create: {
       cacheKey,
-      response,
+      response: jsonResponse,
       expiresAt: ttlSeconds ? new Date(Date.now() + ttlSeconds * 1000) : null,
     },
   });

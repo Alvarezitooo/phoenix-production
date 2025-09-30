@@ -144,7 +144,8 @@ export function AssessmentForm() {
     }
 
     if (steps[currentStep]?.includes('Préférences')) {
-      const fieldsToValidate = mode === ASSESSMENT_MODES.QUICK ? ['workPreferences', 'strengths'] : ['workPreferences', 'strengths'];
+      const fieldsToValidate: Array<keyof FormValues> =
+        mode === ASSESSMENT_MODES.QUICK ? ['workPreferences', 'strengths'] : ['workPreferences', 'strengths'];
       if (fieldsToValidate.length > 0) {
         const valid = await trigger(fieldsToValidate);
         if (!valid) {

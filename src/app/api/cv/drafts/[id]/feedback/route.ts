@@ -1,3 +1,4 @@
+import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getAuthSession } from '@/lib/auth';
@@ -8,7 +9,16 @@ const feedbackSchema = z.object({
   message: z.string().min(5),
 });
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+type RouteContext = { params: Promise<Record<string, string | string[] | undefined>> };
+
+export async function POST(request: NextRequest, context: RouteContext) {
+  const params = await context.params;
+  const draftId = params?.id;
+
+  if (!draftId || Array.isArray(draftId)) {
+    return NextResponse.json({ message: 'Invalid draft id' }, { status: 400 });
+  }
+
   const session = await getAuthSession();
   if (!session?.user?.id) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
@@ -19,7 +29,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
     const draft = await prisma.resumeDraft.findFirst({
       where: {
-        id: params.id,
+        id: draftId,
         userId: session.user.id,
       },
     });

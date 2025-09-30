@@ -66,6 +66,8 @@ model User {
   notifications     Notification[]
   analyticsEvents   AnalyticsEvent[]
   resumeDrafts      ResumeDraft[]
+  letterDrafts      LetterDraft[]
+  riseSessions      RiseSession[]
   accounts          Account[]
   sessions          Session[]
 }
@@ -147,6 +149,41 @@ model ResumeDraft {
   createdAt   DateTime                @default(now())
   updatedAt   DateTime                @updatedAt
   feedback    ResumeFeedback[]
+}
+
+model LetterDraft {
+  id         String        @id @default(cuid())
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title      String?
+  template   String?
+  tone       String?
+  language   String?
+  content    Json
+  alignScore Float?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  feedback   LetterFeedback[]
+}
+
+model LetterFeedback {
+  id        String       @id @default(cuid())
+  draftId   String
+  draft     LetterDraft  @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  section   String
+  message   String
+  createdAt DateTime     @default(now())
+}
+
+model RiseSession {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String
+  focus     String
+  questions Json
+  notes     Json?
+  createdAt DateTime @default(now())
 }
 
 model ResumeFeedback {

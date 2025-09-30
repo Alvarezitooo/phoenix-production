@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getAuthSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { AnalyticsEventType, AssessmentMode, AssessmentStatus } from '@prisma/client';
-import { getCareerRecommendations, analyzeAssessmentResults } from '@/lib/ai';
+import { getCareerRecommendations, analyzeAssessmentResults, type CareerRecommendation } from '@/lib/ai';
 import { logAnalyticsEvent } from '@/lib/analytics';
 import { sendAssessmentCompletedEmail } from '@/lib/mailer';
 import { assertActiveSubscription, canAccessModule } from '@/lib/subscription';
@@ -107,6 +107,9 @@ export async function POST(request: Request) {
       analyzeAssessmentResults(recommendationPayload),
     ]);
 
+    const userId = session.user?.id;
+    const userEmail = session.user?.email ?? '';
+
     await prisma.$transaction([
       prisma.assessment.update({
         where: { id: assessment.id },
@@ -120,8 +123,8 @@ export async function POST(request: Request) {
         },
       }),
       prisma.careerMatch.createMany({
-        data: recommendations.map((recommendation) => ({
-          userId: session.user.id,
+        data: recommendations.map((recommendation: CareerRecommendation) => ({
+          userId: userId,
           assessmentId: assessment.id,
           careerTitle: recommendation.careerTitle,
           compatibilityScore: recommendation.compatibilityScore,
@@ -134,12 +137,12 @@ export async function POST(request: Request) {
       }),
     ]);
 
-    sendAssessmentCompletedEmail(session.user.email ?? '', parsed.mode === 'QUICK' ? 'Quick Analysis' : 'Complete Assessment').catch((error) =>
+    sendAssessmentCompletedEmail(userEmail, parsed.mode === 'QUICK' ? 'Quick Analysis' : 'Complete Assessment').catch((error) =>
       console.error('Unable to send assessment email', error),
     );
 
     logAnalyticsEvent({
-      userId: session.user.id,
+      userId,
       type: AnalyticsEventType.ASSESSMENT_COMPLETED,
       metadata: { assessmentId: assessment.id, mode: parsed.mode },
     }).catch((error) => console.error('Failed to log analytics event', error));

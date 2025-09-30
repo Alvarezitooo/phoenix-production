@@ -1,4 +1,4 @@
-import { AnalyticsEventType } from '@prisma/client';
+import { AnalyticsEventType, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
 export async function logAnalyticsEvent(params: {
@@ -10,7 +10,7 @@ export async function logAnalyticsEvent(params: {
     data: {
       userId: params.userId,
       type: params.type,
-      metadata: params.metadata ?? null,
+      metadata: params.metadata ? (params.metadata as Prisma.InputJsonValue) : Prisma.JsonNull,
     },
   });
 }

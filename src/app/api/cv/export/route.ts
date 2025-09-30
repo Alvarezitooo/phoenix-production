@@ -42,8 +42,9 @@ export async function POST(request: Request) {
     }
 
     const pdfBuffer = await renderMarkdownToPdf(markdown);
+    const pdfBody = pdfBuffer instanceof Uint8Array ? Buffer.from(pdfBuffer) : pdfBuffer;
 
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(pdfBody, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',

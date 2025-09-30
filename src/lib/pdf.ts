@@ -32,7 +32,7 @@ export async function renderMarkdownToPdf(markdown: string) {
 }
 
 function transformMarkdownToHtml(markdown: string) {
-  const rendered = marked.parse(markdown, { mangle: false, headerIds: false }) as string;
+  const rendered = marked.parse(markdown) as string;
   const dom = new JSDOM('<!DOCTYPE html><html><head></head><body></body></html>');
   const { document } = dom.window;
 

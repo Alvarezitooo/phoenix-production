@@ -1,8 +1,18 @@
+import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthSession } from '@/lib/auth';
 
-export async function GET(_request: Request, { params }: { params: { id: string } }) {
+type RouteContext = { params: Promise<Record<string, string | string[] | undefined>> };
+
+export async function GET(_request: NextRequest, context: RouteContext) {
+  const params = await context.params;
+  const assessmentId = params?.id;
+
+  if (!assessmentId || Array.isArray(assessmentId)) {
+    return NextResponse.json({ message: 'Invalid assessment id' }, { status: 400 });
+  }
+
   const session = await getAuthSession();
   if (!session?.user?.id) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
@@ -10,7 +20,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
 
   const assessment = await prisma.assessment.findFirst({
     where: {
-      id: params.id,
+      id: assessmentId,
       userId: session.user.id,
     },
     include: {

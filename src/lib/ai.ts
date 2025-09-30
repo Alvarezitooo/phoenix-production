@@ -16,7 +16,7 @@ const gemini = geminiKey
 
 type Provider = 'openai' | 'gemini';
 
-type CareerRecommendation = {
+export type CareerRecommendation = {
   careerTitle: string;
   compatibilityScore: number;
   sector: string;
@@ -125,8 +125,11 @@ async function callProvider(prompt: string, provider: Provider) {
     });
     const output = response.output?.[0];
     if (output && 'content' in output) {
-      const textSegment = output.content?.find((item) => item.type === 'text');
-      if (textSegment && textSegment.type === 'text') {
+      const textSegment = output.content?.find((item) => {
+        const segment = item as { type?: string };
+        return segment.type === 'text' || segment.type === 'output_text';
+      }) as { type?: string; text?: string } | undefined;
+      if (textSegment?.text) {
         return textSegment.text;
       }
     }
@@ -192,21 +195,48 @@ export async function getCareerRecommendations(payload: AssessmentPayload) {
   return FALLBACK_RECOMMENDATIONS;
 }
 
-export async function generateCoverLetter(context: {
+type CoverLetterPayload = {
   jobTitle: string;
   company: string;
-  tone: 'professional' | 'friendly' | 'impactful';
+  hiringManager?: string;
+  tone: 'professional' | 'friendly' | 'impactful' | 'storytelling' | 'executive';
+  language: 'fr' | 'en';
   highlights: string[];
+  alignmentHooks?: string[];
   resumeSummary: string;
-}) {
-  const cacheKey = hashCacheKey({ type: 'cover_letter', context });
-  const cached = await getCachedResponse<{ content: string }>(cacheKey);
-  if (cached) return cached.content;
+};
 
-  const prompt = `Write a ${context.tone} cover letter for the ${context.jobTitle} role at ${context.company}. Mention the following highlights: ${context.highlights.join(', ')}. Resume summary: ${context.resumeSummary}. Output Markdown.`;
+type CoverLetterResult = {
+  letterMarkdown: string;
+  bulletSummary: string[];
+  callToAction: string;
+  alignScore?: number;
+};
+
+export async function generateCoverLetter(payload: CoverLetterPayload) {
+  const cacheKey = hashCacheKey({ type: 'cover_letter', payload });
+  const cached = await getCachedResponse<CoverLetterResult>(cacheKey);
+  if (cached) return cached.letterMarkdown;
+
+  const languageLabel = payload.language === 'en' ? 'English' : 'French';
+  const toneLabel = payload.tone;
+  const hooks = payload.alignmentHooks?.length ? payload.alignmentHooks.join(' | ') : 'Relier vos motivations à la culture de l’entreprise.';
+
+  const prompt = `You are a senior career copywriter. Craft a ${languageLabel} cover letter in Markdown for the ${payload.jobTitle} role at ${payload.company}. Tone must be ${toneLabel}. Structure the output as JSON with keys: letterMarkdown (string Markdown with intro, impact section, alignment with culture, closing), bulletSummary (array of 3 actionable bullet points summarizing the letter), callToAction (string), alignScore (0-100 estimate). Mention highlights: ${payload.highlights.join(', ')}. Hiring manager: ${payload.hiringManager ?? 'not specified'}. Alignment hooks: ${hooks}. Resume summary: ${payload.resumeSummary}. Ensure the Markdown includes salutations appropriate to ${languageLabel} culture.`;
+
   const response = await callWithFallback(prompt);
 
-  await setCachedResponse(cacheKey, { content: response }, 60 * 60 * 6);
+  try {
+    const parsed = JSON.parse(response) as CoverLetterResult;
+    if (parsed?.letterMarkdown) {
+      await setCachedResponse(cacheKey, parsed, 60 * 60 * 6);
+      return parsed.letterMarkdown;
+    }
+  } catch (error) {
+    console.error('[AI] Failed to parse cover letter', error);
+  }
+
+  await setCachedResponse(cacheKey, { letterMarkdown: response, bulletSummary: [], callToAction: '', alignScore: undefined }, 60 * 30);
   return response;
 }
 

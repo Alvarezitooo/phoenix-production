@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { signIn } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -18,7 +18,7 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-export default function SignInPage() {
+function SignInContent() {
   const router = useRouter();
   const params = useSearchParams();
   const [error, setError] = useState<string | null>(params.get('error'));
@@ -72,5 +72,13 @@ export default function SignInPage() {
         </Link>
       </p>
     </div>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignInContent />
+    </Suspense>
   );
 }

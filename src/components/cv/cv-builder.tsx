@@ -86,7 +86,7 @@ const formSchema = z.object({
   language: z.enum(['fr', 'en']).default('fr'),
 });
 
-type FormValues = z.infer<typeof formSchema>;
+type FormValues = z.input<typeof formSchema>;
 
 type Insights = {
   atsChecklist: string[];

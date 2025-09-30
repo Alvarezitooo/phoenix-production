@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getAuthSession } from '@/lib/auth';
 import { getInterviewPracticeSet } from '@/lib/ai';
 import { assertActiveSubscription } from '@/lib/subscription';
+import { prisma } from '@/lib/prisma';
 
 const schema = z.object({
   role: z.string().min(2),
@@ -20,7 +21,17 @@ export async function POST(request: Request) {
     await assertActiveSubscription(session.user.id);
 
     const questions = await getInterviewPracticeSet(payload);
-    return NextResponse.json({ questions });
+
+    const sessionRecord = await prisma.riseSession.create({
+      data: {
+        userId: session.user.id,
+        role: payload.role,
+        focus: payload.focus,
+        questions,
+      },
+    });
+
+    return NextResponse.json({ questions, sessionId: sessionRecord.id });
   } catch (error) {
     console.error('[RISE_QUESTIONS]', error);
     if (error instanceof z.ZodError) {
