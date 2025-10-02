@@ -4,7 +4,7 @@ import { getAuthSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { generateInterviewCoachResponse } from '@/lib/ai';
 import { logAnalyticsEvent } from '@/lib/analytics';
-import { assertActiveSubscription } from '@/lib/subscription';
+import { assertActiveSubscription, assertWithinQuota } from '@/lib/subscription';
 
 const schema = z.object({
   message: z.string().min(1),
@@ -22,6 +22,7 @@ export async function POST(request: Request) {
     const body = schema.parse(await request.json());
 
     await assertActiveSubscription(session.user.id);
+    await assertWithinQuota(session.user.id, 'aiMessages');
 
     const conversation = body.conversationId
       ? await prisma.conversation.findFirst({
@@ -43,17 +44,17 @@ export async function POST(request: Request) {
       ? (conversation.messages as Array<{ role: 'user' | 'assistant'; content: string; timestamp: string }>)
       : [];
 
-    const newHistory = [
-      ...history,
-      { role: 'user' as const, content: body.message, timestamp: new Date().toISOString() },
-    ];
+    const nextUserMessage = { role: 'user' as const, content: body.message, timestamp: new Date().toISOString() };
+    const newHistory = [...history.slice(-40), nextUserMessage];
 
     const aiMessage = await generateInterviewCoachResponse(newHistory.map(({ role, content }) => ({ role, content })), body.focusArea);
 
-    const updatedHistory = [
-      ...newHistory,
-      { role: 'assistant' as const, content: aiMessage, timestamp: new Date().toISOString() },
-    ];
+    const nextAssistantMessage = {
+      role: 'assistant' as const,
+      content: aiMessage,
+      timestamp: new Date().toISOString(),
+    };
+    const updatedHistory = [...newHistory.slice(-39), nextAssistantMessage];
 
     const updatedConversation = await prisma.conversation.update({
       where: { id: conversation.id },
@@ -79,6 +80,9 @@ export async function POST(request: Request) {
     }
     if (error instanceof Error && error.message === 'SUBSCRIPTION_REQUIRED') {
       return NextResponse.json({ message: 'Abonnement requis pour discuter avec Luna.' }, { status: 402 });
+    }
+    if (error instanceof Error && error.message === 'QUOTA_EXCEEDED') {
+      return NextResponse.json({ message: 'Quota mensuel atteint pour les messages Luna.' }, { status: 429 });
     }
     return NextResponse.json({ message: 'Failed to process message' }, { status: 500 });
   }

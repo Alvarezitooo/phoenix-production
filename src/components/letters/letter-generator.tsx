@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useFieldArray, useForm } from 'react-hook-form';
+import { useFieldArray, useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
@@ -65,14 +65,23 @@ const formSchema = z.object({
   jobTitle: z.string().min(2),
   company: z.string().min(2),
   hiringManager: z.string().optional(),
-  tone: z.enum(['professional', 'friendly', 'impactful', 'storytelling', 'executive']).default('professional'),
-  language: z.enum(['fr', 'en']).default('fr'),
+  tone: z.enum(['professional', 'friendly', 'impactful', 'storytelling', 'executive']),
+  language: z.enum(['fr', 'en']),
   highlights: z.array(z.string().min(3)).min(2),
-  alignmentHooks: z.array(z.string().min(3)).optional(),
+  alignmentHooks: z.array(z.string().min(3)).default([]),
   resumeSummary: z.string().min(20),
 });
 
-type FormValues = z.infer<typeof formSchema>;
+type FormValues = {
+  jobTitle: string;
+  company: string;
+  hiringManager?: string;
+  tone: 'professional' | 'friendly' | 'impactful' | 'storytelling' | 'executive';
+  language: 'fr' | 'en';
+  highlights: string[];
+  alignmentHooks: string[];
+  resumeSummary: string;
+};
 
 type NotesPayload = {
   draftId: string;
@@ -118,7 +127,7 @@ export function LetterGenerator() {
   const [pdfErrorMessage, setPdfErrorMessage] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(formSchema) as Resolver<FormValues>,
     defaultValues: {
       jobTitle: '',
       company: '',
@@ -126,18 +135,19 @@ export function LetterGenerator() {
       tone: 'professional',
       language: 'fr',
       highlights: ['', ''],
-      alignmentHooks: [''],
+      alignmentHooks: [],
       resumeSummary: '',
     },
   });
 
-  const highlightsArray = useFieldArray({
+  // React Hook Form struggles to infer array paths on our manual FormValues shape, so coerce the field names.
+  const highlightsArray = useFieldArray<FormValues>({
     control: form.control,
-    name: 'highlights',
+    name: 'highlights' as never,
   });
-  const hooksArray = useFieldArray({
+  const hooksArray = useFieldArray<FormValues>({
     control: form.control,
-    name: 'alignmentHooks',
+    name: 'alignmentHooks' as never,
   });
 
   const refreshContext = useCallback(async () => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Rocket } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import type { SubscriptionPlan } from '@prisma/client';
 
 const schema = z.object({
   name: z.string().min(2),
@@ -19,10 +20,27 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export default function RegisterPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-4 text-center text-white/70">
+          <p>Chargement du formulaire…</p>
+        </div>
+      }
+    >
+      <RegisterPageContent />
+    </Suspense>
+  );
+}
+
+function RegisterPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const form = useForm<FormValues>({ resolver: zodResolver(schema) });
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  const requestedPlan = (searchParams?.get('plan')?.toUpperCase() as SubscriptionPlan | undefined) ?? 'ESSENTIAL';
 
   async function onSubmit(values: FormValues) {
     setError(null);
@@ -30,7 +48,7 @@ export default function RegisterPage() {
     const response = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(values),
+      body: JSON.stringify({ ...values, plan: requestedPlan }),
     });
 
     if (!response.ok) {
@@ -50,7 +68,9 @@ export default function RegisterPage() {
           <Rocket className="h-6 w-6" />
         </div>
         <h1 className="text-2xl font-semibold">Créez votre compte</h1>
-        <p className="text-sm text-white/60">Activez votre espace Phoenix pour accéder aux modules IA personnalisés.</p>
+        <p className="text-sm text-white/60">
+          Activez votre espace Phoenix pour accéder aux modules IA personnalisés ({requestedPlan === 'PRO' ? 'Plan Pro' : 'Plan Essentiel'}).
+        </p>
       </div>
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

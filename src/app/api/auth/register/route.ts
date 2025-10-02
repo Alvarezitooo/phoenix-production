@@ -9,6 +9,7 @@ const schema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
   password: z.string().min(8),
+  plan: z.enum(['ESSENTIAL', 'PRO']).optional(),
 });
 
 export async function POST(request: Request) {
@@ -27,8 +28,8 @@ export async function POST(request: Request) {
         name: data.name,
         email: data.email.toLowerCase(),
         hashedPassword,
-        subscriptionPlan: DEFAULT_PLAN,
-        subscriptionStatus: 'ACTIVE',
+        subscriptionPlan: (data.plan as typeof DEFAULT_PLAN | undefined) ?? DEFAULT_PLAN,
+        subscriptionStatus: 'INACTIVE',
       },
     });
 

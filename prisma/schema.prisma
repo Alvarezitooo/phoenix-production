@@ -57,6 +57,7 @@ model User {
   subscriptionStatus SubscriptionStatus @default(INACTIVE)
   stripeCustomerId  String?
   stripeSubscriptionId String?
+  currentPeriodStart DateTime?
   currentPeriodEnd  DateTime?
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt

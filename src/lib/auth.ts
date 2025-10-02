@@ -4,10 +4,10 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import { compare } from 'bcryptjs';
 import { prisma } from './prisma';
 import { getServerSession } from 'next-auth';
+import type { SubscriptionPlan, SubscriptionStatus } from '@prisma/client';
 
-const DEFAULT_PLAN = (process.env.DEFAULT_SUBSCRIPTION_PLAN ?? 'ESSENTIAL') as
-  | 'ESSENTIAL'
-  | 'PRO';
+const DEFAULT_PLAN = (process.env.DEFAULT_SUBSCRIPTION_PLAN ?? 'ESSENTIAL') as SubscriptionPlan;
+const INACTIVE_STATUS: SubscriptionStatus = 'INACTIVE';
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -73,7 +73,7 @@ export const authOptions: NextAuthOptions = {
         });
 
         token.subscriptionPlan = subscription?.subscriptionPlan ?? DEFAULT_PLAN;
-        token.subscriptionStatus = subscription?.subscriptionStatus ?? 'INACTIVE';
+        token.subscriptionStatus = subscription?.subscriptionStatus ?? INACTIVE_STATUS;
         token.currentPeriodEnd = subscription?.currentPeriodEnd?.toISOString();
       }
 
@@ -89,7 +89,7 @@ export const authOptions: NextAuthOptions = {
           });
 
           token.subscriptionPlan = subscription?.subscriptionPlan ?? DEFAULT_PLAN;
-          token.subscriptionStatus = subscription?.subscriptionStatus ?? 'INACTIVE';
+          token.subscriptionStatus = subscription?.subscriptionStatus ?? INACTIVE_STATUS;
           token.currentPeriodEnd = subscription?.currentPeriodEnd?.toISOString();
         }
       }
@@ -109,11 +109,13 @@ export const authOptions: NextAuthOptions = {
   },
   events: {
     async createUser({ user }) {
+      const plan = (user.subscriptionPlan as SubscriptionPlan | null) ?? DEFAULT_PLAN;
+      const status = (user.subscriptionStatus as SubscriptionStatus | null) ?? INACTIVE_STATUS;
       await prisma.user.update({
         where: { id: user.id },
         data: {
-          subscriptionPlan: DEFAULT_PLAN,
-          subscriptionStatus: 'ACTIVE',
+          subscriptionPlan: plan,
+          subscriptionStatus: status,
         },
       });
     },

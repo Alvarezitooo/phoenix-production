@@ -6,7 +6,7 @@ import { AnalyticsEventType, AssessmentMode, AssessmentStatus } from '@prisma/cl
 import { getCareerRecommendations, analyzeAssessmentResults, type CareerRecommendation } from '@/lib/ai';
 import { logAnalyticsEvent } from '@/lib/analytics';
 import { sendAssessmentCompletedEmail } from '@/lib/mailer';
-import { assertActiveSubscription, canAccessModule } from '@/lib/subscription';
+import { assertActiveSubscription, assertWithinQuota, canAccessModule } from '@/lib/subscription';
 
 const bigFiveSchema = z.record(z.number().min(1).max(5)).refine((scores) => Object.keys(scores).length === 5, {
   message: 'Big Five must include exactly five traits',
@@ -69,6 +69,7 @@ export async function POST(request: Request) {
     const parsed = createSchema.parse(await request.json());
 
     const subscription = await assertActiveSubscription(session.user.id);
+    await assertWithinQuota(session.user.id, 'assessments');
     if (parsed.mode === 'COMPLETE') {
       const allowed = canAccessModule(subscription.subscriptionPlan ?? 'ESSENTIAL', 'aube-complete');
       if (!allowed) {
@@ -102,56 +103,67 @@ export async function POST(request: Request) {
       narrative: parsed.responses.narrative,
     };
 
-    const [recommendations, summary] = await Promise.all([
-      getCareerRecommendations(recommendationPayload),
-      analyzeAssessmentResults(recommendationPayload),
-    ]);
+    try {
+      const [recommendations, summary] = await Promise.all([
+        getCareerRecommendations(recommendationPayload),
+        analyzeAssessmentResults(recommendationPayload),
+      ]);
 
-    const userId = session.user?.id;
-    const userEmail = session.user?.email ?? '';
+      const userId = session.user?.id;
+      const userEmail = session.user?.email ?? '';
 
-    await prisma.$transaction([
-      prisma.assessment.update({
+      await prisma.$transaction([
+        prisma.assessment.update({
+          where: { id: assessment.id },
+          data: {
+            status: AssessmentStatus.COMPLETED,
+            completionDate: new Date(),
+            results: {
+              summary,
+              recommendations,
+            },
+          },
+        }),
+        prisma.careerMatch.createMany({
+          data: recommendations.map((recommendation: CareerRecommendation) => ({
+            userId: userId,
+            assessmentId: assessment.id,
+            careerTitle: recommendation.careerTitle,
+            compatibilityScore: recommendation.compatibilityScore,
+            sector: recommendation.sector,
+            description: recommendation.description,
+            requiredSkills: recommendation.requiredSkills,
+            salaryRange: recommendation.salaryRange,
+            details: recommendation,
+          })),
+        }),
+      ]);
+
+      sendAssessmentCompletedEmail(
+        userEmail,
+        parsed.mode === 'QUICK' ? 'Quick Analysis' : 'Complete Assessment',
+      ).catch((error) => console.error('Unable to send assessment email', error));
+
+      logAnalyticsEvent({
+        userId,
+        type: AnalyticsEventType.ASSESSMENT_COMPLETED,
+        metadata: { assessmentId: assessment.id, mode: parsed.mode },
+      }).catch((error) => console.error('Failed to log analytics event', error));
+
+      return NextResponse.json({
+        assessmentId: assessment.id,
+        recommendations,
+        summary,
+      });
+    } catch (error) {
+      await prisma.assessment.update({
         where: { id: assessment.id },
         data: {
-          status: AssessmentStatus.COMPLETED,
-          completionDate: new Date(),
-          results: {
-            summary,
-            recommendations,
-          },
+          status: AssessmentStatus.FAILED,
         },
-      }),
-      prisma.careerMatch.createMany({
-        data: recommendations.map((recommendation: CareerRecommendation) => ({
-          userId: userId,
-          assessmentId: assessment.id,
-          careerTitle: recommendation.careerTitle,
-          compatibilityScore: recommendation.compatibilityScore,
-          sector: recommendation.sector,
-          description: recommendation.description,
-          requiredSkills: recommendation.requiredSkills,
-          salaryRange: recommendation.salaryRange,
-          details: recommendation,
-        })),
-      }),
-    ]);
-
-    sendAssessmentCompletedEmail(userEmail, parsed.mode === 'QUICK' ? 'Quick Analysis' : 'Complete Assessment').catch((error) =>
-      console.error('Unable to send assessment email', error),
-    );
-
-    logAnalyticsEvent({
-      userId,
-      type: AnalyticsEventType.ASSESSMENT_COMPLETED,
-      metadata: { assessmentId: assessment.id, mode: parsed.mode },
-    }).catch((error) => console.error('Failed to log analytics event', error));
-
-    return NextResponse.json({
-      assessmentId: assessment.id,
-      recommendations,
-      summary,
-    });
+      });
+      throw error;
+    }
   } catch (error) {
     console.error('[ASSESSMENT_CREATE]', error);
     if (error instanceof z.ZodError) {
@@ -164,6 +176,9 @@ export async function POST(request: Request) {
       }
       if (error.message === 'PLAN_UPGRADE_REQUIRED') {
         return NextResponse.json({ message: 'Veuillez passer au plan Pro pour débloquer cette analyse.' }, { status: 403 });
+      }
+      if (error.message === 'QUOTA_EXCEEDED') {
+        return NextResponse.json({ message: 'Quota mensuel atteint pour les évaluations.' }, { status: 429 });
       }
     }
 

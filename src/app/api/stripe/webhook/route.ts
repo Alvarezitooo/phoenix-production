@@ -2,6 +2,43 @@ import { NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
 import { prisma } from '@/lib/prisma';
+import type { SubscriptionStatus, SubscriptionPlan } from '@prisma/client';
+
+function resolveSubscriptionStatus(status: Stripe.Subscription.Status): SubscriptionStatus {
+  switch (status) {
+    case 'active':
+    case 'trialing':
+      return 'ACTIVE';
+    case 'past_due':
+    case 'incomplete':
+    case 'incomplete_expired':
+      return 'PAST_DUE';
+    case 'canceled':
+    case 'unpaid':
+      return 'CANCELED';
+    default:
+      return 'INACTIVE';
+  }
+}
+
+function resolvePlan(plan: string | null | undefined): SubscriptionPlan {
+  return plan === 'PRO' ? 'PRO' : 'ESSENTIAL';
+}
+
+type StripeResponseWithData<T> = Stripe.Response<T> & { data: T };
+
+type SubscriptionWithPeriods = Stripe.Subscription & {
+  current_period_end?: number | null;
+  current_period_start?: number | null;
+};
+
+function isStripeResponse<T>(resource: Stripe.Response<T> | T): resource is StripeResponseWithData<T> {
+  return typeof resource === 'object' && resource !== null && 'data' in resource;
+}
+
+function unwrapStripeResource<T>(resource: Stripe.Response<T> | T): T {
+  return isStripeResponse(resource) ? resource.data : (resource as T);
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,39 +60,50 @@ export async function POST(request: Request) {
 
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
-      const userId = session.metadata?.userId;
-      const plan = session.metadata?.subscriptionPlan as Stripe.Metadata[keyof Stripe.Metadata] | undefined;
-      const subscriptionId = session.subscription as string | undefined;
-      if (userId && plan && subscriptionId) {
+      const userId = session.metadata?.userId ?? null;
+      const plan = session.metadata?.subscriptionPlan ?? null;
+      const subscriptionId = typeof session.subscription === 'string' ? session.subscription : null;
+
+      if (userId && subscriptionId) {
+        const subscriptionResponse = await stripe.subscriptions.retrieve(subscriptionId);
+        const subscription = unwrapStripeResource(subscriptionResponse) as SubscriptionWithPeriods;
+        const currentPeriodEndUnix = typeof subscription.current_period_end === 'number' ? subscription.current_period_end : null;
+        const currentPeriodStartUnix = typeof subscription.current_period_start === 'number' ? subscription.current_period_start : null;
+
         await prisma.user.update({
           where: { id: userId },
           data: {
-            subscriptionPlan: plan === 'PRO' ? 'PRO' : 'ESSENTIAL',
-            subscriptionStatus: 'ACTIVE',
-            stripeCustomerId: session.customer?.toString() ?? null,
-            stripeSubscriptionId: subscriptionId,
-            currentPeriodEnd: session.expires_at ? new Date(session.expires_at * 1000) : null,
+            subscriptionPlan: resolvePlan(plan),
+            subscriptionStatus: resolveSubscriptionStatus(subscription.status),
+            stripeCustomerId: subscription.customer?.toString() ?? session.customer?.toString() ?? null,
+            stripeSubscriptionId: subscription.id,
+            currentPeriodStart: currentPeriodStartUnix ? new Date(currentPeriodStartUnix * 1000) : null,
+            currentPeriodEnd: currentPeriodEndUnix ? new Date(currentPeriodEndUnix * 1000) : null,
           },
         });
       }
     }
 
     if (event.type === 'customer.subscription.updated') {
-      const subscription = event.data.object as Stripe.Subscription;
+      const subscription = event.data.object as SubscriptionWithPeriods;
       const user = await prisma.user.findFirst({
         where: { stripeSubscriptionId: subscription.id },
         select: { id: true },
       });
 
       if (user) {
-        const currentPeriodEndUnix = (subscription as Stripe.Subscription & { current_period_end?: number }).current_period_end;
-        const currentPeriodEndValue = typeof currentPeriodEndUnix === 'number' ? new Date(currentPeriodEndUnix * 1000) : null;
+        const currentPeriodEndUnix = typeof subscription.current_period_end === 'number' ? subscription.current_period_end : null;
+        const currentPeriodStartUnix = typeof subscription.current_period_start === 'number' ? subscription.current_period_start : null;
 
+        const planMetadata =
+          subscription.metadata?.subscriptionPlan ?? subscription.items.data[0]?.plan?.metadata?.subscriptionPlan ?? null;
         await prisma.user.update({
           where: { id: user.id },
           data: {
-            subscriptionStatus: subscription.status === 'active' ? 'ACTIVE' : 'PAST_DUE',
-            currentPeriodEnd: currentPeriodEndValue,
+            subscriptionStatus: resolveSubscriptionStatus(subscription.status),
+            ...(planMetadata ? { subscriptionPlan: resolvePlan(planMetadata) } : {}),
+            currentPeriodStart: currentPeriodStartUnix ? new Date(currentPeriodStartUnix * 1000) : null,
+            currentPeriodEnd: currentPeriodEndUnix ? new Date(currentPeriodEndUnix * 1000) : null,
           },
         });
       }
@@ -73,8 +121,7 @@ export async function POST(request: Request) {
           where: { id: user.id },
           data: {
             subscriptionStatus: 'CANCELED',
-            currentPeriodEnd:
-              typeof subscription.ended_at === 'number' ? new Date(subscription.ended_at * 1000) : null,
+            currentPeriodEnd: typeof subscription.ended_at === 'number' ? new Date(subscription.ended_at * 1000) : null,
           },
         });
       }
