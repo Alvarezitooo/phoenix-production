@@ -6,7 +6,7 @@ const stripeSecret = process.env.STRIPE_SECRET_KEY;
 
 export const stripe = stripeSecret
   ? new Stripe(stripeSecret, {
-      apiVersion: '2025-09-30.clover',
+      apiVersion: '2025-09-30.clover' as Stripe.LatestApiVersion,
     })
   : null;
 

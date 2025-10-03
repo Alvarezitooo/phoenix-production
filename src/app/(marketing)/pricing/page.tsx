@@ -1,5 +1,6 @@
 import { Metadata } from 'next';
 import { PlanCard } from '@/components/pricing/plan-card';
+import type { SubscriptionPlan } from '@prisma/client';
 
 export const metadata: Metadata = {
   title: 'Plans & Tarifs | Phoenix',
@@ -7,6 +8,10 @@ export const metadata: Metadata = {
 };
 
 export default function PricingPage() {
+  const PLAN_DISCOVERY: SubscriptionPlan = 'DISCOVERY';
+  const PLAN_ESSENTIAL: SubscriptionPlan = 'ESSENTIAL';
+  const PLAN_PRO: SubscriptionPlan = 'PRO';
+
   return (
     <div className="space-y-12">
       <section className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-lg">
@@ -20,7 +25,7 @@ export default function PricingPage() {
         </div>
         <div className="mt-8 grid gap-6 md:grid-cols-3">
           <PlanCard
-            plan="DISCOVERY"
+            plan={PLAN_DISCOVERY}
             title="Découverte"
             price="Gratuit"
             description="Accédez à Aube, au CV et à Luna pour une première exploration sans frais."
@@ -32,7 +37,7 @@ export default function PricingPage() {
             ctaLabel="Activer mon accès"
           />
           <PlanCard
-            plan="ESSENTIAL"
+            plan={PLAN_ESSENTIAL}
             title="Essentiel"
             price="19,90 €/mois"
             description="Pour structurer ses candidatures et alimenter ses entretiens."
@@ -45,7 +50,7 @@ export default function PricingPage() {
             ctaLabel="Choisir Essentiel"
           />
           <PlanCard
-            plan="PRO"
+            plan={PLAN_PRO}
             title="Pro"
             price="34,90 €/mois"
             description="Pour orchestrer une transition stratégique avec un accompagnement intensif."

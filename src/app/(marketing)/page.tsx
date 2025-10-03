@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ArrowRight, Compass, FileText, Sparkles, MessageCircle } from 'lucide-react';
+import type { SubscriptionPlan } from '@prisma/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlanCard } from '@/components/pricing/plan-card';
 
@@ -37,6 +38,10 @@ const modules = [
     accent: 'from-blue-500/40 to-blue-400/20',
   },
 ];
+
+const PLAN_DISCOVERY: SubscriptionPlan = 'DISCOVERY';
+const PLAN_ESSENTIAL: SubscriptionPlan = 'ESSENTIAL';
+const PLAN_PRO: SubscriptionPlan = 'PRO';
 
 export default function HomePage() {
   return (
@@ -124,7 +129,7 @@ export default function HomePage() {
         </div>
         <div className="grid gap-6 md:grid-cols-3">
           <PlanCard
-            plan="DISCOVERY"
+            plan={PLAN_DISCOVERY}
             title="Découverte"
             price="Gratuit"
             description="Testez Aube, générez un premier CV et dialoguez avec Luna sans engagement."
@@ -136,7 +141,7 @@ export default function HomePage() {
             ctaLabel="Activer mon accès"
           />
           <PlanCard
-            plan="ESSENTIAL"
+            plan={PLAN_ESSENTIAL}
             title="Essentiel"
             price="19,90 €/mois"
             description="Pour structurer ses candidatures et garder une cadence régulière."
@@ -149,7 +154,7 @@ export default function HomePage() {
             ctaLabel="Choisir Essentiel"
           />
           <PlanCard
-            plan="PRO"
+            plan={PLAN_PRO}
             title="Pro"
             price="34,90 €/mois"
             description="Pour orchestrer une transition stratégique et se préparer aux entretiens exigeants."
