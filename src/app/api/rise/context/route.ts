@@ -11,6 +11,8 @@ export async function GET() {
   try {
     const userId = session.user.id;
 
+    const preferredMatchId = session.user.preferredCareerMatchId ?? null;
+
     const [resumeDraft, letterDraft, riseSessions, matches] = await Promise.all([
       prisma.resumeDraft.findFirst({
         where: { userId },
@@ -43,18 +45,36 @@ export async function GET() {
     return NextResponse.json({
       resumeSummary,
       letterSummary,
-      matches: matches.map((match) => ({
+      matches: (() => {
+        const seen = new Set<string>();
+        const deduped = matches
+          .filter((match) => {
+            const key = match.careerTitle.toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          })
+          .slice(0, 10);
+        const ordered = preferredMatchId
+          ? [
+              ...deduped.filter((match) => match.id === preferredMatchId),
+              ...deduped.filter((match) => match.id !== preferredMatchId),
+            ]
+          : deduped;
+        return ordered.slice(0, 5).map((match) => ({
         id: match.id,
         title: match.careerTitle,
         compatibilityScore: match.compatibilityScore,
         requiredSkills: match.requiredSkills,
-      })),
+        }));
+      })(),
       sessions: riseSessions.map((session) => ({
         id: session.id,
         role: session.role,
         focus: session.focus,
         createdAt: session.createdAt,
       })),
+      preferredMatchId,
     });
   } catch (error) {
     console.error('[RISE_CONTEXT]', error);

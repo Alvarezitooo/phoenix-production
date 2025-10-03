@@ -10,6 +10,7 @@ declare module 'next-auth' {
       subscriptionPlan: string;
       subscriptionStatus: string;
       currentPeriodEnd?: string;
+      preferredCareerMatchId?: string;
     };
   }
 
@@ -20,6 +21,7 @@ declare module 'next-auth' {
     subscriptionPlan?: string;
     subscriptionStatus?: string;
     currentPeriodEnd?: Date;
+    preferredCareerMatchId?: string | null;
   }
 }
 
@@ -28,5 +30,6 @@ declare module 'next-auth/jwt' {
     subscriptionPlan?: string;
     subscriptionStatus?: string;
     currentPeriodEnd?: string;
+    preferredCareerMatchId?: string | null;
   }
 }

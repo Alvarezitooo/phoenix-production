@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -169,6 +169,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 export type Recommendation = {
+  id?: string;
   careerTitle: string;
   compatibilityScore: number;
   sector: string;
@@ -226,6 +227,10 @@ export function AssessmentForm() {
   const { data: session } = useSession();
   const userPlan = (session?.user?.subscriptionPlan as SubscriptionPlan | undefined) ?? 'DISCOVERY';
   const isPro = userPlan === 'PRO';
+  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(session?.user?.preferredCareerMatchId ?? null);
+  const [selectingMatchId, setSelectingMatchId] = useState<string | null>(null);
+  const [selectionMessage, setSelectionMessage] = useState<string | null>(null);
+  const [selectionError, setSelectionError] = useState<string | null>(null);
   const {
     control,
     getValues,
@@ -268,6 +273,10 @@ export function AssessmentForm() {
   const watchedRiasec = watch('riasec');
   const activeStep = mode ? steps[currentStep] : null;
   const stepDetail = mode === ASSESSMENT_MODES.COMPLETE && activeStep ? COMPLETE_STEP_DETAILS[activeStep] ?? null : null;
+
+  useEffect(() => {
+    setSelectedMatchId(session?.user?.preferredCareerMatchId ?? null);
+  }, [session?.user?.preferredCareerMatchId]);
 
   async function handleNext() {
     if (!mode) return;
@@ -408,6 +417,8 @@ export function AssessmentForm() {
     setValue('interests', []);
     setValue('narrative', '');
     setCompletedAssessmentId(null);
+    setSelectionMessage(null);
+    setSelectionError(null);
   }
 
   function startCompleteFlow() {
@@ -425,6 +436,8 @@ export function AssessmentForm() {
     setValue('interests', []);
     setValue('narrative', '');
     setCompletedAssessmentId(null);
+    setSelectionMessage(null);
+    setSelectionError(null);
   }
 
   function startExpressFlow() {
@@ -442,6 +455,8 @@ export function AssessmentForm() {
     setValue('interests', []);
     setValue('narrative', '');
     setCompletedAssessmentId(null);
+    setSelectionMessage(null);
+    setSelectionError(null);
   }
 
   function handleExpressToggle(id: string) {
@@ -455,6 +470,31 @@ export function AssessmentForm() {
       }
       return next;
     });
+  }
+
+  async function handleSelectMatch(matchId: string) {
+    if (!matchId) return;
+    setSelectingMatchId(matchId);
+    setSelectionMessage(null);
+    setSelectionError(null);
+    try {
+      const response = await fetch('/api/career-matches/select', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        const message = data?.message ?? 'Impossible de définir cette trajectoire.';
+        throw new Error(message);
+      }
+      setSelectedMatchId(matchId);
+      setSelectionMessage('Trajectoire principale mise à jour.');
+    } catch (error) {
+      setSelectionError(error instanceof Error ? error.message : 'Erreur inattendue.');
+    } finally {
+      setSelectingMatchId(null);
+    }
   }
 
   return (
@@ -532,6 +572,25 @@ export function AssessmentForm() {
                       </ul>
                     </div>
                   )}
+                  {typeof results[0].id === 'string' && (
+                    <div className="mt-4 flex items-center justify-end">
+                      <Button
+                        type="button"
+                        variant={selectedMatchId === results[0].id ? 'secondary' : 'ghost'}
+                        className="text-xs"
+                        loading={selectingMatchId === results[0].id}
+                        onClick={() => void handleSelectMatch(results[0].id as string)}
+                      >
+                        {selectedMatchId === results[0].id ? 'Trajectoire principale sélectionnée' : 'Définir comme trajectoire principale'}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+              {(selectionMessage || selectionError) && (
+                <div className="text-xs">
+                  {selectionMessage && <p className="text-emerald-200">{selectionMessage}</p>}
+                  {selectionError && <p className="text-rose-300">{selectionError}</p>}
                 </div>
               )}
               <div className="rounded-3xl border border-dashed border-white/20 bg-white/5 p-5 text-xs text-white/60">
@@ -564,6 +623,11 @@ export function AssessmentForm() {
               recommendations={results}
               assessmentId={completedAssessmentId}
               isPro={isPro}
+              selectedMatchId={selectedMatchId}
+              selectingMatchId={selectingMatchId}
+              selectionMessage={selectionMessage}
+              selectionError={selectionError}
+              onSelectMatch={handleSelectMatch}
             />
             <div className="flex items-center justify-end">
               <Button variant="ghost" onClick={resetFlow}>

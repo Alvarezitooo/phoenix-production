@@ -120,32 +120,48 @@ export async function POST(request: Request) {
       const userId = session.user?.id;
       const userEmail = session.user?.email ?? '';
 
-      await prisma.$transaction([
-        prisma.assessment.update({
+      if (!userId) {
+        throw new Error('USER_MISSING');
+      }
+
+      const recommendationsWithIds = await prisma.$transaction(async (tx) => {
+        const created = await Promise.all(
+          recommendations.map((recommendation: CareerRecommendation) =>
+            tx.careerMatch.create({
+              data: {
+                userId,
+                assessmentId: assessment.id,
+                careerTitle: recommendation.careerTitle,
+                compatibilityScore: recommendation.compatibilityScore,
+                sector: recommendation.sector,
+                description: recommendation.description,
+                requiredSkills: recommendation.requiredSkills,
+                salaryRange: recommendation.salaryRange,
+                details: recommendation,
+              },
+            }),
+          ),
+        );
+
+        const enriched = created.map((createdMatch, index) => ({
+          ...recommendations[index],
+          id: createdMatch.id,
+        }));
+
+        await tx.assessment.update({
           where: { id: assessment.id },
           data: {
             status: AssessmentStatus.COMPLETED,
             completionDate: new Date(),
             results: {
               summary,
-              recommendations,
+              recommendations: enriched,
             },
           },
-        }),
-        prisma.careerMatch.createMany({
-          data: recommendations.map((recommendation: CareerRecommendation) => ({
-            userId: userId,
-            assessmentId: assessment.id,
-            careerTitle: recommendation.careerTitle,
-            compatibilityScore: recommendation.compatibilityScore,
-            sector: recommendation.sector,
-            description: recommendation.description,
-            requiredSkills: recommendation.requiredSkills,
-            salaryRange: recommendation.salaryRange,
-            details: recommendation,
-          })),
-        }),
-      ]);
+        });
+
+        return enriched;
+      });
 
       sendAssessmentCompletedEmail(
         userEmail,
@@ -160,7 +176,7 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         assessmentId: assessment.id,
-        recommendations,
+        recommendations: recommendationsWithIds,
         summary,
       });
     } catch (error) {

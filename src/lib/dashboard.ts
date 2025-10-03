@@ -43,6 +43,7 @@ type DashboardUserInfo = {
   subscriptionPlan: string | null;
   subscriptionStatus: string | null;
   currentPeriodEnd: string | null;
+  preferredCareerMatchId: string | null;
 };
 
 export type DashboardSnapshot = {
@@ -56,6 +57,18 @@ export type DashboardSnapshot = {
   conversations: DashboardConversation[];
   errors: string[];
 };
+
+function dedupeMatches(matches: { id: string; careerTitle: string; compatibilityScore: number; requiredSkills: string[]; description: string | null }[]) {
+  const seen = new Set<string>();
+  const ordered: typeof matches = [];
+  for (const match of matches) {
+    const key = match.careerTitle.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    ordered.push(match);
+  }
+  return ordered;
+}
 
 function extractResumeSummary(content: unknown): string | null {
   if (!content || typeof content !== 'object') return null;
@@ -93,6 +106,7 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
           subscriptionPlan: true,
           subscriptionStatus: true,
           currentPeriodEnd: true,
+          preferredCareerMatchId: true,
         },
       }),
     ),
@@ -123,7 +137,7 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
       prisma.careerMatch.findMany({
         where: { userId },
         orderBy: { compatibilityScore: 'desc' },
-        take: 3,
+        take: 10,
         select: {
           id: true,
           careerTitle: true,
@@ -183,8 +197,19 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
         subscriptionPlan: user.subscriptionPlan,
         subscriptionStatus: user.subscriptionStatus,
         currentPeriodEnd: user.currentPeriodEnd ? user.currentPeriodEnd.toISOString() : null,
+        preferredCareerMatchId: user.preferredCareerMatchId ?? null,
       }
     : null;
+
+  const preferredMatchId = user?.preferredCareerMatchId ?? null;
+
+  const dedupedMatches = dedupeMatches(matches ?? []);
+  const orderedMatches = preferredMatchId
+    ? [
+        ...dedupedMatches.filter((match) => match.id === preferredMatchId),
+        ...dedupedMatches.filter((match) => match.id !== preferredMatchId),
+      ]
+    : dedupedMatches;
 
   const letters: DashboardLetter[] = (letterDrafts ?? []).map((draft) => {
     const markdown = extractLetterMarkdown(draft.content);
@@ -221,7 +246,7 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
     messagesCount: Array.isArray(conversation.messages) ? conversation.messages.length : 0,
   }));
 
-  const matchesMapped: DashboardMatch[] = (matches ?? []).map((match) => ({
+  const matchesMapped: DashboardMatch[] = orderedMatches.slice(0, 3).map((match) => ({
     id: match.id,
     title: match.careerTitle,
     compatibilityScore: match.compatibilityScore,

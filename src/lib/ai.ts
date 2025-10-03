@@ -14,6 +14,7 @@ type Provider = 'openai' | 'gemini';
 const PROMPT_VERSION = 'aube_reco_fr_v2';
 
 export type CareerRecommendation = {
+  id?: string;
   careerTitle: string;
   compatibilityScore: number;
   sector: string;

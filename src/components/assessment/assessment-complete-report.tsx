@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { CompatibilityBadge } from '@/components/ui/badge';
 import { Recommendation } from '@/components/assessment/assessment-form';
 import { Button } from '@/components/ui/button';
+import { CheckCircle2 } from 'lucide-react';
 
 function uniqueValues(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
@@ -24,9 +25,24 @@ type AssessmentCompleteReportProps = {
   recommendations: Recommendation[];
   assessmentId: string | null;
   isPro: boolean;
+  selectedMatchId: string | null;
+  selectingMatchId: string | null;
+  selectionMessage: string | null;
+  selectionError: string | null;
+  onSelectMatch: (matchId: string) => Promise<void>;
 };
 
-export function AssessmentCompleteReport({ summary, recommendations, assessmentId, isPro }: AssessmentCompleteReportProps) {
+export function AssessmentCompleteReport({
+  summary,
+  recommendations,
+  assessmentId,
+  isPro,
+  selectedMatchId,
+  selectingMatchId,
+  selectionMessage,
+  selectionError,
+  onSelectMatch,
+}: AssessmentCompleteReportProps) {
   const summaryParagraphs = splitSummary(summary);
   const allSkills = uniqueValues(recommendations.flatMap((rec) => rec.requiredSkills ?? []));
   const allFocus = uniqueValues(recommendations.flatMap((rec) => rec.developmentFocus ?? []));
@@ -106,6 +122,17 @@ export function AssessmentCompleteReport({ summary, recommendations, assessmentI
 
   return (
     <div className="space-y-6">
+      {selectionMessage && (
+        <div className="rounded-3xl border border-emerald-400/40 bg-emerald-500/10 p-3 text-xs text-emerald-200">
+          {selectionMessage}
+        </div>
+      )}
+      {selectionError && (
+        <div className="rounded-3xl border border-rose-400/40 bg-rose-500/10 p-3 text-xs text-rose-200">
+          {selectionError}
+        </div>
+      )}
+
       <Card className="border-white/10 bg-white/5">
         <CardHeader>
           <CardTitle>Lecture synthétique</CardTitle>
@@ -132,7 +159,16 @@ export function AssessmentCompleteReport({ summary, recommendations, assessmentI
           <CardDescription>Trois pistes d’évolution avec vos leviers de succès et actions d’upskilling.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
-          {recommendations.map((item) => (
+          {recommendations.map((item) => {
+            const matchId = item.id ?? null;
+            const isSelectable = Boolean(matchId);
+            const isSelected = isSelectable && selectedMatchId === matchId;
+            const isLoading = isSelectable && selectingMatchId === matchId;
+            const handleSelectMatch = () => {
+              if (!matchId) return;
+              void onSelectMatch(matchId);
+            };
+            return (
             <article key={item.careerTitle} className="rounded-3xl border border-white/10 bg-white/5 p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -167,8 +203,29 @@ export function AssessmentCompleteReport({ summary, recommendations, assessmentI
               {item.salaryRange && (
                 <div className="mt-4 text-sm text-white/70">Rémunération indicative&nbsp;: {item.salaryRange}</div>
               )}
+              {isSelectable && (
+                <div className="mt-4 flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant={isSelected ? 'secondary' : 'ghost'}
+                    disabled={isLoading}
+                    loading={isLoading}
+                    className="text-xs"
+                    onClick={handleSelectMatch}
+                  >
+                    {isSelected ? (
+                      <span className="flex items-center gap-1">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Trajectoire principale
+                      </span>
+                    ) : (
+                      'Définir comme trajectoire principale'
+                    )}
+                  </Button>
+                </div>
+              )}
             </article>
-          ))}
+          );
+          })}
         </CardContent>
       </Card>
 

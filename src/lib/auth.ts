@@ -58,6 +58,7 @@ export const authOptions: NextAuthOptions = {
         session.user.subscriptionPlan = (token.subscriptionPlan as string | undefined) ?? 'ESSENTIAL';
         session.user.subscriptionStatus = (token.subscriptionStatus as string | undefined) ?? 'INACTIVE';
         session.user.currentPeriodEnd = token.currentPeriodEnd as string | undefined;
+        session.user.preferredCareerMatchId = token.preferredCareerMatchId as string | undefined;
       }
       return session;
     },
@@ -69,12 +70,14 @@ export const authOptions: NextAuthOptions = {
             subscriptionPlan: true,
             subscriptionStatus: true,
             currentPeriodEnd: true,
+            preferredCareerMatchId: true,
           },
         });
 
         token.subscriptionPlan = subscription?.subscriptionPlan ?? DEFAULT_PLAN;
         token.subscriptionStatus = subscription?.subscriptionStatus ?? INACTIVE_STATUS;
         token.currentPeriodEnd = subscription?.currentPeriodEnd?.toISOString();
+        token.preferredCareerMatchId = subscription?.preferredCareerMatchId ?? null;
       }
 
       if (token.sub) {
@@ -85,12 +88,14 @@ export const authOptions: NextAuthOptions = {
               subscriptionPlan: true,
               subscriptionStatus: true,
               currentPeriodEnd: true,
+              preferredCareerMatchId: true,
             },
           });
 
           token.subscriptionPlan = subscription?.subscriptionPlan ?? DEFAULT_PLAN;
           token.subscriptionStatus = subscription?.subscriptionStatus ?? INACTIVE_STATUS;
           token.currentPeriodEnd = subscription?.currentPeriodEnd?.toISOString();
+          token.preferredCareerMatchId = subscription?.preferredCareerMatchId ?? token.preferredCareerMatchId ?? null;
         }
       }
       return token;
@@ -117,6 +122,7 @@ export const authOptions: NextAuthOptions = {
         subscriptionStatus: SubscriptionStatus;
         currentPeriodStart?: Date | null;
         currentPeriodEnd?: Date | null;
+        preferredCareerMatchId?: string | null;
       } = {
         subscriptionPlan: plan,
         subscriptionStatus: status,
@@ -126,6 +132,7 @@ export const authOptions: NextAuthOptions = {
         data.subscriptionStatus = 'ACTIVE';
         data.currentPeriodStart = now;
         data.currentPeriodEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+        data.preferredCareerMatchId = null;
       }
       await prisma.user.update({
         where: { id: user.id },

@@ -31,6 +31,7 @@ model User {
   resumeDrafts         ResumeDraft[]
   riseSessions         RiseSession[]
   sessions             Session[]
+  preferredCareerMatchId String?
 }
 
 model Assessment {

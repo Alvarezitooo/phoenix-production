@@ -10,6 +10,7 @@ export async function GET() {
 
   try {
     const userId = session.user.id;
+    const preferredMatchId = session.user.preferredCareerMatchId ?? null;
 
     const [latestResumeDraft, matches, letters] = await Promise.all([
       prisma.resumeDraft.findFirst({
@@ -46,14 +47,31 @@ export async function GET() {
 
     return NextResponse.json({
       resume: resumeContext,
-      matches: matches.map((match) => ({
+      matches: (() => {
+        const seen = new Set<string>();
+        const deduped = matches
+          .filter((match) => {
+            const key = match.careerTitle.toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          })
+          .slice(0, 10);
+        const ordered = preferredMatchId
+          ? [
+              ...deduped.filter((match) => match.id === preferredMatchId),
+              ...deduped.filter((match) => match.id !== preferredMatchId),
+            ]
+          : deduped;
+        return ordered.slice(0, 5).map((match) => ({
         id: match.id,
         title: match.careerTitle,
         compatibilityScore: match.compatibilityScore,
         requiredSkills: match.requiredSkills,
         description: match.description,
         assessmentId: match.assessmentId,
-      })),
+        }));
+      })(),
       letterDrafts: letters.map((draft) => ({
         id: draft.id,
         title: draft.title,
@@ -69,6 +87,7 @@ export async function GET() {
           createdAt: feedback.createdAt,
         })),
       })),
+      preferredMatchId,
     });
   } catch (error) {
     console.error('[LETTERS_CONTEXT]', error);

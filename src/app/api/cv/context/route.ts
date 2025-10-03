@@ -88,7 +88,24 @@ export async function GET() {
       };
     }
 
-    const careerMatches = matches.map((match) => ({
+    const preferredMatchId = session.user?.preferredCareerMatchId ?? null;
+    const seenTitles = new Set<string>();
+    const deduped = matches
+      .filter((match) => {
+        const key = match.careerTitle.toLowerCase();
+        if (seenTitles.has(key)) return false;
+        seenTitles.add(key);
+        return true;
+      })
+      .slice(0, 10);
+    const orderedMatches = preferredMatchId
+      ? [
+          ...deduped.filter((match) => match.id === preferredMatchId),
+          ...deduped.filter((match) => match.id !== preferredMatchId),
+        ]
+      : deduped;
+
+    const careerMatches = orderedMatches.map((match) => ({
       id: match.id,
       title: match.careerTitle,
       compatibilityScore: match.compatibilityScore,
@@ -133,6 +150,7 @@ export async function GET() {
       careerMatches,
       resumeDrafts,
       lunaThreads,
+      preferredMatchId,
     });
   } catch (error) {
     console.error('[CV_CONTEXT]', error);
