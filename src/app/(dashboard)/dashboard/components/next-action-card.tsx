@@ -192,7 +192,7 @@ export function NextActionCard({ snapshot }: NextActionCardProps) {
     <Card className="border-white/10 bg-white/5">
       <CardContent className="flex flex-col gap-4 p-5 text-white">
         <div>
-          <span className="text-xs uppercase tracking-wide text-white/40">
+          <span className="text-xs uppercase tracking-wide text-white/60">
             {nextAction.badge ?? 'Prochaine étape'}
           </span>
           <h2 className="mt-1 text-lg font-semibold">{nextAction.title}</h2>

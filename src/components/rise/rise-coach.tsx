@@ -218,7 +218,7 @@ export function RiseCoach() {
 
             {matches.length > 0 && (
               <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs uppercase tracking-wide text-white/40">
+                <div className="flex items-center justify-between text-xs uppercase tracking-wide text-white/60">
                   <span>Trajectoires Aube</span>
                   <Button type="button" variant="ghost" className="text-xs" onClick={() => autofillFromMatch()}>
                     Préremplir
@@ -249,11 +249,11 @@ export function RiseCoach() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-wide text-white/40">Rôle ciblé</label>
+                <label className="text-xs font-semibold uppercase tracking-wide text-white/60">Rôle ciblé</label>
                 <Input placeholder="Ex : Head of Product" value={role} onChange={(event) => setRole(event.target.value)} />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-wide text-white/40">Focus d&apos;entraînement</label>
+                <label className="text-xs font-semibold uppercase tracking-wide text-white/60">Focus d&apos;entraînement</label>
                 <div className="flex gap-2">
                   {focuses.map((item) => (
                     <button
@@ -319,7 +319,7 @@ export function RiseCoach() {
                       <span>{item.role || 'Session Rise'}</span>
                       <Badge className="border-emerald-400/40 text-emerald-200">{item.focus}</Badge>
                     </div>
-                    <p className="text-[11px] text-white/40">{new Date(item.createdAt).toLocaleString()}</p>
+                    <p className="text-[11px] text-white/60">{new Date(item.createdAt).toLocaleString()}</p>
                     <div className="mt-2 flex gap-2">
                       <Button type="button" variant="secondary" className="text-xs" onClick={() => handleLoadSession(item.id)}>
                         Charger cette session

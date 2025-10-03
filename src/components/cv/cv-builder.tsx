@@ -433,7 +433,7 @@ export function CvBuilder() {
 
           {careerMatches.length > 0 && (
             <div className="space-y-3">
-              <div className="flex items-center justify-between text-xs uppercase tracking-wide text-white/40">
+              <div className="flex items-center justify-between text-xs uppercase tracking-wide text-white/60">
                 <span>Trajectoires Aube compatibles</span>
                 <span>Choisissez le focus</span>
               </div>
@@ -472,17 +472,17 @@ export function CvBuilder() {
 
           <form onSubmit={onSubmit} className="space-y-6">
             <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wider text-white/40">Intitulé visé</label>
+              <label className="text-xs font-semibold uppercase tracking-wider text-white/60">Intitulé visé</label>
               <Input placeholder="Ex: Product Manager Senior" {...form.register('targetRole')} />
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wider text-white/40">Résumé professionnel</label>
+              <label className="text-xs font-semibold uppercase tracking-wider text-white/60">Résumé professionnel</label>
               <Textarea rows={4} placeholder="Synthétisez vos impacts, secteurs, résultats clés." {...form.register('summary')} />
             </div>
 
             <div className="space-y-3">
-              <label className="text-xs font-semibold uppercase tracking-wider text-white/40">Template</label>
+              <label className="text-xs font-semibold uppercase tracking-wider text-white/60">Template</label>
               <div className="grid gap-2 sm:grid-cols-3">
                 {templates.map((tpl) => (
                   <button
@@ -508,7 +508,7 @@ export function CvBuilder() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-wider text-white/40">Tone</label>
+                <label className="text-xs font-semibold uppercase tracking-wider text-white/60">Tone</label>
                 <div className="grid gap-2">
                   {tones.map((tone) => (
                     <button
@@ -530,7 +530,7 @@ export function CvBuilder() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-wider text-white/40">Langue</label>
+                <label className="text-xs font-semibold uppercase tracking-wider text-white/60">Langue</label>
                 <div className="grid gap-2">
                   {languages.map((lang) => (
                     <button
@@ -554,7 +554,7 @@ export function CvBuilder() {
 
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold uppercase tracking-wider text-white/40">Expériences</label>
+                <label className="text-xs font-semibold uppercase tracking-wider text-white/60">Expériences</label>
                 <Button type="button" variant="secondary" onClick={() => append({ company: '', role: '', achievements: [''] })}>
                   <Plus className="h-4 w-4" /> Ajouter
                 </Button>
@@ -563,9 +563,9 @@ export function CvBuilder() {
                 {fields.map((field, index) => (
                   <div key={field.id} className="rounded-3xl border border-white/10 bg-white/5 p-4">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs uppercase text-white/40">Expérience #{index + 1}</span>
+                      <span className="text-xs uppercase text-white/60">Expérience #{index + 1}</span>
                       {fields.length > 1 && (
-                        <button type="button" onClick={() => remove(index)} className="text-white/40 transition hover:text-red-400">
+                        <button type="button" onClick={() => remove(index)} className="text-white/60 transition hover:text-red-400">
                           <Trash2 className="h-4 w-4" />
                         </button>
                       )}
@@ -574,7 +574,7 @@ export function CvBuilder() {
                       <Input placeholder="Entreprise" {...form.register(`experiences.${index}.company` as const)} />
                       <Input placeholder="Rôle" {...form.register(`experiences.${index}.role` as const)} />
                       <div className="space-y-2">
-                        <label className="text-[11px] font-medium text-white/40">Réalisations</label>
+                        <label className="text-[11px] font-medium text-white/60">Réalisations</label>
                         {(form.watch(`experiences.${index}.achievements`) ?? []).map((_, achievementIndex) => (
                           <Input
                             key={achievementIndex}
@@ -601,7 +601,7 @@ export function CvBuilder() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wider text-white/40">Compétences (séparées par des virgules)</label>
+              <label className="text-xs font-semibold uppercase tracking-wider text-white/60">Compétences (séparées par des virgules)</label>
               <Input placeholder="Produit, Analyse, Leadership, Scrum" {...form.register('skills')} />
             </div>
 
@@ -703,7 +703,7 @@ export function CvBuilder() {
                         <span className="font-semibold text-white">{draft.title ?? 'CV sans titre'}</span>
                         <Badge className="border-white/20 text-white/60">v{draft.version}</Badge>
                       </div>
-                      <span className="text-[11px] text-white/40">{new Date(draft.updatedAt).toLocaleString()}</span>
+                      <span className="text-[11px] text-white/60">{new Date(draft.updatedAt).toLocaleString()}</span>
                     </div>
                     {draft.alignScore !== null && <p className="mt-1 text-[11px] text-emerald-200">Alignement : {Math.round(draft.alignScore)}%</p>}
                     {draft.feedback.length > 0 && (

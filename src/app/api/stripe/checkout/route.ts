@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getAuthSession } from '@/lib/auth';
 import { createCheckoutSession } from '@/lib/stripe';
+import { prisma } from '@/lib/prisma';
 import type { SubscriptionPlan } from '@prisma/client';
 
 const schema = z.object({
@@ -21,12 +22,17 @@ export async function POST(request: Request) {
   try {
     const body = schema.parse(await request.json());
     const plan = body.plan as SubscriptionPlan;
+    const userRecord = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { stripeCustomerId: true },
+    });
     const checkoutSession = await createCheckoutSession({
       userId: session.user.id,
       email: session.user.email,
       plan,
       successUrl: `${process.env.APP_BASE_URL}/dashboard?checkout=success`,
       cancelUrl: `${process.env.APP_BASE_URL}/dashboard?checkout=cancelled`,
+      customerId: userRecord?.stripeCustomerId ?? null,
     });
     return NextResponse.json({ url: checkoutSession.url });
   } catch (error) {

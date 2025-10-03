@@ -6,7 +6,7 @@ const stripeSecret = process.env.STRIPE_SECRET_KEY;
 
 export const stripe = stripeSecret
   ? new Stripe(stripeSecret, {
-      apiVersion: '2025-08-27.basil',
+      apiVersion: '2024-06-20',
     })
   : null;
 
@@ -16,6 +16,7 @@ export async function createCheckoutSession(params: {
   plan: SubscriptionPlan;
   successUrl: string;
   cancelUrl: string;
+  customerId?: string | null;
 }) {
   if (!stripe) {
     throw new Error('Stripe is not configured');
@@ -25,7 +26,8 @@ export async function createCheckoutSession(params: {
 
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
-    customer_email: params.email,
+    customer: params.customerId ?? undefined,
+    customer_email: params.customerId ? undefined : params.email,
     line_items: [
       {
         price: priceId,

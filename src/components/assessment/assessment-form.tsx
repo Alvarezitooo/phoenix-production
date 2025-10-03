@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -11,7 +10,8 @@ import { ProgressBar } from '@/components/ui/progress';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { CompatibilityBadge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowRight, ShieldCheck, Zap } from 'lucide-react';
+import { AssessmentCompleteReport } from '@/components/assessment/assessment-complete-report';
+import { ArrowRight, Lightbulb, ShieldCheck, Zap } from 'lucide-react';
 
 const ASSESSMENT_MODES = {
   QUICK: 'QUICK',
@@ -19,6 +19,127 @@ const ASSESSMENT_MODES = {
 } as const;
 
 type AssessmentMode = (typeof ASSESSMENT_MODES)[keyof typeof ASSESSMENT_MODES];
+
+const EXPRESS_BASE_BIG_FIVE = {
+  openness: 3,
+  conscientiousness: 3,
+  extraversion: 3,
+  agreeableness: 3,
+  neuroticism: 3,
+} as const;
+
+const EXPRESS_BASE_RIASEC = {
+  realistic: 3,
+  investigative: 3,
+  artistic: 3,
+  social: 3,
+  enterprising: 3,
+  conventional: 3,
+} as const;
+
+type BigFiveKey = keyof typeof EXPRESS_BASE_BIG_FIVE;
+type RiasecKey = keyof typeof EXPRESS_BASE_RIASEC;
+
+const BIG_FIVE_LABELS: Record<BigFiveKey, string> = {
+  openness: 'Ouverture',
+  conscientiousness: 'Rigueur',
+  extraversion: 'Extraversion',
+  agreeableness: 'Coopération',
+  neuroticism: 'Stabilité émotionnelle',
+};
+
+const RIASEC_LABELS: Record<RiasecKey, string> = {
+  realistic: 'Réaliste',
+  investigative: 'Investigateur',
+  artistic: 'Artistique',
+  social: 'Social',
+  enterprising: 'Entreprenant',
+  conventional: 'Conventionnel',
+};
+
+const COMPLETE_STEP_DETAILS: Record<string, { title: string; description: string; bullets?: string[] }> = {
+  'Profil Big Five': {
+    title: 'Ajustez vos traits dominants',
+    description: 'Positionnez chaque curseur selon la fréquence à laquelle vous adoptez ce comportement au travail.',
+    bullets: ['1 = rarement · 5 = presque toujours', 'Appuyez-vous sur votre ressenti actuel, pas sur un idéal.'],
+  },
+  RIASEC: {
+    title: 'Identifiez vos univers naturels',
+    description: 'Chaque curseur exprime l’attirance pour un environnement. Cela permet de diversifier vos trajectoires.',
+    bullets: [
+      'Réaliste = terrain, concret',
+      'Investigateur = analyse, recherche',
+      'Artistique = création, expérience',
+      'Social = accompagnement, pédagogie',
+      'Entreprenant = pilotage, business',
+      'Conventionnel = gestion, structure',
+    ],
+  },
+  'Préférences': {
+    title: 'Ancrez votre quotidien idéal',
+    description: 'Sélectionnez les contextes qui vous donnent le plus d’énergie et les forces que vous mobilisez naturellement.',
+  },
+  'Narratif professionnel': {
+    title: 'Formulez votre ambition',
+    description: 'Décrivez ce que vous souhaitez accomplir et dans quelles conditions vous voulez le réaliser.',
+    bullets: [
+      'Quel impact souhaitez-vous générer ?',
+      'Dans quel type d’organisation évolueriez-vous idéalement ?',
+      'Quel défi voulez-vous relever d’ici 12 mois ?',
+    ],
+  },
+};
+
+const expressOptions: Array<{
+  id: string;
+  tag: string;
+  label: string;
+  bigFive?: Partial<Record<BigFiveKey, number>>;
+  riasec?: Partial<Record<RiasecKey, number>>;
+}> = [
+  {
+    id: 'analyse-systemes',
+    tag: 'Analyse & data',
+    label: 'Je prends plaisir à investiguer des systèmes complexes et à faire parler les données.',
+    bigFive: { openness: 1, conscientiousness: 1 },
+    riasec: { investigative: 2, conventional: 1 },
+  },
+  {
+    id: 'terrain-concret',
+    tag: 'Terrain & opérations',
+    label: 'Je veux voir un impact concret sur le terrain et coordonner des actions pragmatiques.',
+    bigFive: { extraversion: 1 },
+    riasec: { realistic: 2, enterprising: 1 },
+  },
+  {
+    id: 'experience-humaine',
+    tag: 'Accompagnement',
+    label: 'Motiver, coacher et faire grandir les autres est ce qui me donne de l’énergie.',
+    bigFive: { agreeableness: 1 },
+    riasec: { social: 2, enterprising: 1 },
+  },
+  {
+    id: 'vision-creativite',
+    tag: 'Créativité',
+    label: 'J’aime inventer de nouvelles expériences ou raconter des histoires qui embarquent.',
+    bigFive: { openness: 2 },
+    riasec: { artistic: 2 },
+  },
+  {
+    id: 'strategie-business',
+    tag: 'Stratégie',
+    label: 'Piloter des projets ambitieux, fédérer des parties prenantes et chercher la performance me stimule.',
+    bigFive: { conscientiousness: 1, extraversion: 1 },
+    riasec: { enterprising: 2 },
+  },
+  {
+    id: 'impact-societal',
+    tag: 'Impact',
+    label: 'Je veux contribuer à des transitions sociales ou écologiques visibles.',
+    bigFive: { agreeableness: 1, openness: 1 },
+    riasec: { social: 1, investigative: 1 },
+  },
+];
 
 const formSchema = z.object({
   bigFive: z.object({
@@ -45,7 +166,7 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-type Recommendation = {
+export type Recommendation = {
   careerTitle: string;
   compatibilityScore: number;
   sector: string;
@@ -65,14 +186,40 @@ function toggleValue(values: string[], value: string) {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function recomputeExpressScores(selected: string[]) {
+  const nextBigFive: Record<BigFiveKey, number> = { ...EXPRESS_BASE_BIG_FIVE };
+  const nextRiasec: Record<RiasecKey, number> = { ...EXPRESS_BASE_RIASEC };
+
+  for (const id of selected) {
+    const option = expressOptions.find((item) => item.id === id);
+    if (!option) continue;
+    if (option.bigFive) {
+      for (const key of Object.keys(option.bigFive) as BigFiveKey[]) {
+        nextBigFive[key] = clamp(nextBigFive[key] + (option.bigFive?.[key] ?? 0), 1, 5);
+      }
+    }
+    if (option.riasec) {
+      for (const key of Object.keys(option.riasec) as RiasecKey[]) {
+        nextRiasec[key] = clamp(nextRiasec[key] + (option.riasec?.[key] ?? 0), 1, 5);
+      }
+    }
+  }
+
+  return { bigFive: nextBigFive, riasec: nextRiasec };
+}
+
 export function AssessmentForm() {
   const [mode, setMode] = useState<AssessmentMode | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Recommendation[] | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
-  const router = useRouter();
-
+  const [expressSelections, setExpressSelections] = useState<string[]>([]);
+  const [expressError, setExpressError] = useState<string | null>(null);
   const {
     control,
     getValues,
@@ -85,21 +232,8 @@ export function AssessmentForm() {
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      bigFive: {
-        openness: 3,
-        conscientiousness: 3,
-        extraversion: 3,
-        agreeableness: 3,
-        neuroticism: 3,
-      },
-      riasec: {
-        realistic: 3,
-        investigative: 3,
-        artistic: 3,
-        social: 3,
-        enterprising: 3,
-        conventional: 3,
-      },
+      bigFive: { ...EXPRESS_BASE_BIG_FIVE },
+      riasec: { ...EXPRESS_BASE_RIASEC },
       workPreferences: [],
       strengths: [],
       growthAreas: [],
@@ -112,7 +246,7 @@ export function AssessmentForm() {
   const steps = useMemo(() => {
     if (!mode) return [];
     if (mode === ASSESSMENT_MODES.QUICK) {
-      return ['Profil Big Five', 'RIASEC', 'Préférences clés'];
+      return ['Profil express', 'Préférences clés'];
     }
     return ['Profil Big Five', 'RIASEC', 'Préférences', 'Narratif professionnel'];
   }, [mode]);
@@ -124,33 +258,44 @@ export function AssessmentForm() {
   const watchedStrengths = watch('strengths');
   const watchedGrowthAreas = watch('growthAreas');
   const watchedInterests = watch('interests');
+  const watchedBigFive = watch('bigFive');
+  const watchedRiasec = watch('riasec');
+  const activeStep = mode ? steps[currentStep] : null;
+  const stepDetail = mode === ASSESSMENT_MODES.COMPLETE && activeStep ? COMPLETE_STEP_DETAILS[activeStep] ?? null : null;
 
   async function handleNext() {
     if (!mode) return;
     let isValid = true;
 
-    if (steps[currentStep]?.includes('Profil Big Five')) {
+    const currentKey = steps[currentStep];
+
+    if (currentKey === 'Profil express') {
+      if (expressSelections.length < 2) {
+        setExpressError('Sélectionnez au moins deux éléments qui vous ressemblent.');
+        isValid = false;
+      } else {
+        setExpressError(null);
+      }
+    }
+
+    if (currentKey === 'Profil Big Five') {
       const valid = await trigger(['bigFive']);
       if (!valid) {
         isValid = false;
       }
     }
 
-    if (steps[currentStep]?.includes('RIASEC')) {
+    if (currentKey === 'RIASEC') {
       const valid = await trigger(['riasec']);
       if (!valid) {
         isValid = false;
       }
     }
 
-    if (steps[currentStep]?.includes('Préférences')) {
-      const fieldsToValidate: Array<keyof FormValues> =
-        mode === ASSESSMENT_MODES.QUICK ? ['workPreferences', 'strengths'] : ['workPreferences', 'strengths'];
-      if (fieldsToValidate.length > 0) {
-        const valid = await trigger(fieldsToValidate);
-        if (!valid) {
-          isValid = false;
-        }
+    if (currentKey.includes('Préférences')) {
+      const valid = await trigger(['workPreferences', 'strengths']);
+      if (!valid) {
+        isValid = false;
       }
 
       if (mode === ASSESSMENT_MODES.COMPLETE) {
@@ -173,7 +318,7 @@ export function AssessmentForm() {
       }
     }
 
-    if (steps[currentStep]?.includes('Narratif')) {
+    if (currentKey === 'Narratif professionnel') {
       const narrativeValue = (getValues('narrative') ?? '').trim();
       if (mode === ASSESSMENT_MODES.COMPLETE) {
         if (narrativeValue.length < 80) {
@@ -242,6 +387,15 @@ export function AssessmentForm() {
     setCurrentStep(0);
     setResults(null);
     setSummary(null);
+    setExpressSelections([]);
+    setExpressError(null);
+    setValue('bigFive', { ...EXPRESS_BASE_BIG_FIVE });
+    setValue('riasec', { ...EXPRESS_BASE_RIASEC });
+    setValue('workPreferences', []);
+    setValue('strengths', []);
+    setValue('growthAreas', []);
+    setValue('interests', []);
+    setValue('narrative', '');
   }
 
   function startCompleteFlow() {
@@ -249,6 +403,44 @@ export function AssessmentForm() {
     setCurrentStep(0);
     setResults(null);
     setSummary(null);
+    setExpressSelections([]);
+    setExpressError(null);
+    setValue('bigFive', { ...EXPRESS_BASE_BIG_FIVE });
+    setValue('riasec', { ...EXPRESS_BASE_RIASEC });
+    setValue('workPreferences', []);
+    setValue('strengths', []);
+    setValue('growthAreas', []);
+    setValue('interests', []);
+    setValue('narrative', '');
+  }
+
+  function startExpressFlow() {
+    setMode(ASSESSMENT_MODES.QUICK);
+    setCurrentStep(0);
+    setResults(null);
+    setSummary(null);
+    setExpressSelections([]);
+    setExpressError(null);
+    setValue('bigFive', { ...EXPRESS_BASE_BIG_FIVE });
+    setValue('riasec', { ...EXPRESS_BASE_RIASEC });
+    setValue('workPreferences', []);
+    setValue('strengths', []);
+    setValue('growthAreas', []);
+    setValue('interests', []);
+    setValue('narrative', '');
+  }
+
+  function handleExpressToggle(id: string) {
+    setExpressSelections((prev) => {
+      const next = prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id];
+      const { bigFive, riasec } = recomputeExpressScores(next);
+      setValue('bigFive', bigFive, { shouldValidate: true });
+      setValue('riasec', riasec, { shouldValidate: true });
+      if (next.length >= 2) {
+        setExpressError(null);
+      }
+      return next;
+    });
   }
 
   return (
@@ -262,21 +454,21 @@ export function AssessmentForm() {
           <CardContent className="grid gap-4 md:grid-cols-2">
             {[
               {
-                title: 'Quick Analysis',
+                title: 'Analyse Express',
                 subtitle: 'Inclus dans Essentiel',
-                description: 'Un diagnostic express en 3 minutes pour révéler vos affinités métiers prioritaires.',
-                mode: ASSESSMENT_MODES.QUICK,
+                description: 'Un diagnostic en moins de 3 minutes pour identifier vos pistes prioritaires.',
+                onClick: startExpressFlow,
               },
               {
-                title: 'Complete Assessment',
+                title: 'Analyse Complète',
                 subtitle: 'Inclus dans Pro',
-                description: 'Une exploration approfondie de vos traits, valeurs et ambitions avec un rapport complet.',
-                mode: ASSESSMENT_MODES.COMPLETE,
+                description: 'Une exploration approfondie de vos traits, valeurs et ambitions avec rapport détaillé.',
+                onClick: startCompleteFlow,
               },
             ].map((option) => (
               <button
                 key={option.title}
-                onClick={() => setMode(option.mode)}
+                onClick={option.onClick}
                 className="rounded-3xl border border-white/10 bg-white/5 p-6 text-left transition hover:border-emerald-400/50 hover:bg-white/10"
               >
                 <div className="flex items-center justify-between">
@@ -295,10 +487,9 @@ export function AssessmentForm() {
         mode === ASSESSMENT_MODES.QUICK ? (
           <Card className="border-white/10 bg-white/5">
             <CardHeader>
-              <CardTitle>Diagnostic express Aube Quick</CardTitle>
+              <CardTitle>Diagnostic express Aube</CardTitle>
               <CardDescription>
-                Votre profil prioritaire en un clin d&apos;oeil. Passez sur l&apos;analyse complète pour explorer trois trajectoires et vos plans
-                d&apos;action détaillés.
+                Votre piste prioritaire en un clin d’œil. Passez sur l’analyse complète pour explorer trois trajectoires et vos plans d’action détaillés.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -319,7 +510,7 @@ export function AssessmentForm() {
                   <p className="mt-3 text-sm text-white/70">{results[0].description}</p>
                   {results[0].quickWins && results[0].quickWins.length > 0 && (
                     <div className="mt-4 space-y-2 text-xs text-white/60">
-                      <span className="uppercase tracking-wide text-white/40">Actions rapides</span>
+                      <span className="uppercase tracking-wide text-white/60">Actions rapides</span>
                       <ul className="space-y-1">
                         {results[0].quickWins.map((item) => (
                           <li key={item}>• {item}</li>
@@ -353,102 +544,121 @@ export function AssessmentForm() {
             </CardContent>
           </Card>
         ) : (
-          <Card className="border-white/10 bg-white/5">
-            <CardHeader>
-              <CardTitle>Vos recommandations personnalisées</CardTitle>
-              <CardDescription>
-                Trois trajectoires prêtes à l&apos;emploi, vos chantiers d&apos;upskilling et les prochaines actions dans Phoenix.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {summary && (
-                <div className="rounded-3xl border border-indigo-500/40 bg-indigo-500/10 p-5 text-sm text-white/80">
-                  {summary}
-                </div>
-              )}
-              {results.map((item) => (
-                <div key={item.careerTitle} className="rounded-3xl border border-white/10 bg-white/5 p-6">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-lg font-semibold text-white">{item.careerTitle}</h3>
-                      <p className="text-sm text-white/60">{item.sector}</p>
-                    </div>
-                    <CompatibilityBadge value={Math.round(item.compatibilityScore)} />
-                  </div>
-                  <p className="mt-3 text-sm text-white/70">{item.description}</p>
-                  {item.requiredSkills.length > 0 && (
-                    <div className="mt-4 flex flex-wrap gap-2 text-xs text-white/60">
-                      {item.requiredSkills.map((skill) => (
-                        <span key={skill} className="rounded-full bg-white/10 px-3 py-1">
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {(item.developmentFocus?.length ?? 0) > 0 && (
-                    <div className="mt-4 space-y-1 text-xs text-white/50">
-                      <span className="uppercase tracking-wide text-white/40">Chantiers prioritaires</span>
-                      <ul className="space-y-1">
-                        {item.developmentFocus?.map((focus) => (
-                          <li key={focus}>• {focus}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  <div className="mt-4 flex flex-col gap-2 text-sm text-white/60 sm:flex-row sm:items-center sm:justify-between">
-                    <span>Rémunération indicative: {item.salaryRange}</span>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="secondary"
-                        className="text-xs"
-                        onClick={() => router.push('/cv-builder')}
-                        type="button"
-                      >
-                        Préparer mon CV
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="text-xs"
-                        onClick={() => router.push('/rise')}
-                        type="button"
-                      >
-                        S&apos;entraîner avec Rise
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <div className="flex items-center justify-between">
-                <Button variant="ghost" onClick={resetFlow}>
-                  Relancer une analyse
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="space-y-6">
+            <AssessmentCompleteReport summary={summary} recommendations={results} />
+            <div className="flex items-center justify-end">
+              <Button variant="ghost" onClick={resetFlow}>
+                Relancer une analyse
+              </Button>
+            </div>
+          </div>
         )
       ) : (
         <Card className="border-white/10 bg-white/5">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Parcours {mode === ASSESSMENT_MODES.QUICK ? 'Quick Analysis' : 'Complete Assessment'}</CardTitle>
-                <CardDescription>
-                  {mode === ASSESSMENT_MODES.QUICK ? '3 étapes rapides pour un diagnostic instantané.' : 'Complétez les étapes pour générer un rapport détaillé.'}
-                </CardDescription>
-              </div>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Parcours {mode === ASSESSMENT_MODES.QUICK ? 'Analyse Express' : 'Analyse Complète'}</CardTitle>
+                  <CardDescription>
+                    {mode === ASSESSMENT_MODES.QUICK
+                      ? '3 étapes ciblées pour obtenir un diagnostic instantané.'
+                      : 'Complétez les étapes pour générer un rapport approfondi et actionnable.'}
+                  </CardDescription>
+                </div>
               <div className="flex items-center gap-2 text-xs text-white/50">
                 <ShieldCheck className="h-4 w-4 text-emerald-300" />
                 Vos réponses restent confidentielles
               </div>
             </div>
             <div className="mt-4 space-y-3">
-              <p className="text-xs uppercase tracking-wide text-white/40">
+              <p className="text-xs uppercase tracking-wide text-white/60">
                 Étape {currentStep + 1} sur {totalSteps}
               </p>
               <ProgressBar value={progress} />
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
+            {stepDetail && (
+              <div className="rounded-3xl border border-emerald-400/40 bg-emerald-500/10 p-4 text-xs text-emerald-100">
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/30">
+                    <Lightbulb className="h-4 w-4" />
+                  </span>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm font-semibold text-white">{stepDetail.title}</p>
+                      <p className="text-white/80">{stepDetail.description}</p>
+                    </div>
+                    {stepDetail.bullets && (
+                      <ul className="space-y-1 text-emerald-100/80">
+                        {stepDetail.bullets.map((bullet) => (
+                          <li key={bullet}>• {bullet}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {steps[currentStep] === 'Profil express' && (
+              <div className="space-y-5">
+                <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+                  <h3 className="text-sm font-semibold text-white">Ce qui vous ressemble</h3>
+                  <p className="mt-2 text-xs text-white/60">
+                    Sélectionnez au moins deux affirmations. Vos réponses ajustent automatiquement votre profil personnalité + RIASEC.
+                  </p>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {expressOptions.map((option) => {
+                    const selected = expressSelections.includes(option.id);
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => handleExpressToggle(option.id)}
+                        className={`flex h-full flex-col gap-2 rounded-3xl border px-4 py-4 text-left transition ${
+                          selected
+                            ? 'border-emerald-400/60 bg-emerald-500/10 text-white'
+                            : 'border-white/10 bg-white/5 text-white/70 hover:border-emerald-300/40 hover:bg-white/10'
+                        }`}
+                      >
+                        <span className="text-xs uppercase tracking-wide text-emerald-200">{option.tag}</span>
+                        <span className="text-sm leading-relaxed">{option.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {expressError && <p className="text-xs text-rose-300">{expressError}</p>}
+                <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-xs text-white/60">
+                  <div className="flex flex-wrap gap-4">
+                    <div>
+                      <p className="font-semibold text-white/80">Synthèse Big Five</p>
+                      <ul className="mt-2 space-y-1">
+                        {Object.entries(watchedBigFive ?? EXPRESS_BASE_BIG_FIVE).map(([key, value]) => (
+                          <li key={key} className="flex items-center gap-2">
+                            <span>{BIG_FIVE_LABELS[key as BigFiveKey]}</span>
+                            <span className="rounded-full bg-white/5 px-2 py-0.5 text-white/70">{value}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-white/80">Tendance RIASEC</p>
+                      <ul className="mt-2 space-y-1">
+                        {Object.entries(watchedRiasec ?? EXPRESS_BASE_RIASEC).map(([key, value]) => (
+                          <li key={key} className="flex items-center gap-2">
+                            <span>{RIASEC_LABELS[key as RiasecKey]}</span>
+                            <span className="rounded-full bg-white/5 px-2 py-0.5 text-white/70">{value}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {steps[currentStep] === 'Profil Big Five' && (
               <div className="space-y-4">
                 {Object.entries({
@@ -480,6 +690,17 @@ export function AssessmentForm() {
                     />
                   </div>
                 ))}
+                <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-xs text-white/60">
+                  <p className="font-semibold text-white/80">Votre tendance actuelle</p>
+                  <ul className="mt-2 grid gap-2 md:grid-cols-3">
+                    {Object.entries(watchedBigFive ?? EXPRESS_BASE_BIG_FIVE).map(([key, value]) => (
+                      <li key={key} className="flex items-center justify-between gap-2 rounded-2xl bg-white/5 px-3 py-2">
+                        <span>{BIG_FIVE_LABELS[key as BigFiveKey]}</span>
+                        <span className="rounded-full bg-white/10 px-2 py-0.5 text-white/80">{value}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             )}
 
@@ -515,6 +736,17 @@ export function AssessmentForm() {
                     />
                   </div>
                 ))}
+                <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-xs text-white/60">
+                  <p className="font-semibold text-white/80">Univers qui vous attirent</p>
+                  <ul className="mt-2 grid gap-2 md:grid-cols-3">
+                    {Object.entries(watchedRiasec ?? EXPRESS_BASE_RIASEC).map(([key, value]) => (
+                      <li key={key} className="flex items-center justify-between gap-2 rounded-2xl bg-white/5 px-3 py-2">
+                        <span>{RIASEC_LABELS[key as RiasecKey]}</span>
+                        <span className="rounded-full bg-white/10 px-2 py-0.5 text-white/80">{value}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             )}
 

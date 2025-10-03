@@ -5,32 +5,32 @@ import { PlanCard } from '@/components/pricing/plan-card';
 
 const modules = [
   {
-    title: 'Aube — Career Discovery',
-    description: 'Unveil the roles that match your personality, values, and strengths through psychometrics.',
+    title: 'Aube — Diagnostic carrière',
+    description: 'Croisez Big Five, RIASEC et préférences pour révéler des trajectoires sur mesure.',
     href: '/aube',
     includedIn: 'Essentiel & Pro',
     icon: Compass,
     accent: 'from-indigo-500/50 to-indigo-400/30',
   },
   {
-    title: 'CV Builder',
-    description: 'Generate elegant, ATS-ready resumes tailored to your target roles in minutes.',
+    title: 'Créateur de CV',
+    description: 'Générez un CV percutant et compatible ATS aligné sur votre rôle cible en quelques minutes.',
     href: '/cv-builder',
     includedIn: 'Essentiel & Pro',
     icon: FileText,
     accent: 'from-purple-500/50 to-purple-400/30',
   },
   {
-    title: 'Letters',
-    description: 'Draft persuasive cover letters and motivational statements with AI co-pilot support.',
+    title: 'Studio Lettres',
+    description: 'Co-écrivez des lettres motivées ancrées dans vos preuves d’impact et le ton de l’entreprise.',
     href: '/letters',
     includedIn: 'Essentiel & Pro',
     icon: Sparkles,
     accent: 'from-emerald-500/40 to-emerald-400/20',
   },
   {
-    title: 'Rise — Interview Studio',
-    description: 'Train with Luna for behavioral and technical interviews using real-time feedback.',
+    title: 'Rise — Studio entretien',
+    description: 'Préparez vos entretiens avec Luna, questions ciblées et feedback immédiat.',
     href: '/rise',
     includedIn: 'Pro (illimité)',
     icon: MessageCircle,
@@ -74,7 +74,7 @@ export default function HomePage() {
               { label: 'Assistant Luna', value: 'Sessions contextualisées 24/7' },
             ].map((item) => (
               <div key={item.label} className="space-y-2">
-                <dt className="text-xs uppercase text-white/40">{item.label}</dt>
+                <dt className="text-xs uppercase text-white/60">{item.label}</dt>
                 <dd className="text-sm text-white/80">{item.value}</dd>
               </div>
             ))}
@@ -129,7 +129,7 @@ export default function HomePage() {
             description="Pour clarifier son prochain rôle et optimiser ses candidatures."
             perks={[
               'Aube Quick illimité',
-              'CV Builder et Letters en accès complet',
+              'Créateur de CV et Studio Lettres en accès complet',
               '10 sessions Rise & Luna par mois',
               'Exports clés (docx, Markdown)',
             ]}
@@ -140,7 +140,7 @@ export default function HomePage() {
             price="29,99 €/mois"
             description="Pour accélérer sa trajectoire et se préparer aux entretiens exigeants."
             perks={[
-              'Aube Complete + Quick illimités',
+              'Aube Complete et Quick illimités',
               'Exports premium (PDF, Notion, ATS)',
               'Sessions Rise & Luna illimitées',
               'Support prioritaire et coaching guidé',

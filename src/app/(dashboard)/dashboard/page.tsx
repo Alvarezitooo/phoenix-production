@@ -173,6 +173,7 @@ export default async function DashboardPage() {
 
   const completedSteps = journeySteps.filter((step) => step.completed).length;
   const progressValue = Math.round((completedSteps / journeySteps.length) * 100);
+  const showOnboardingChecklist = completedSteps === 0;
 
   const timelineEvents: TimelineEvent[] = [
     ...assessments.map((assessment) => ({
@@ -300,6 +301,52 @@ export default async function DashboardPage() {
         </div>
       </section>
 
+      {showOnboardingChecklist && (
+        <Card className="border-white/10 bg-white/5">
+          <CardHeader>
+            <CardTitle>Checklist de démarrage</CardTitle>
+            <CardDescription>Trois étapes pour activer Phoenix en moins de 15 minutes.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm text-white/70">
+            <div className="flex flex-col gap-3">
+              <Link
+                href="/aube"
+                className="flex items-center justify-between rounded-3xl border border-white/10 bg-white/5 px-4 py-3 transition hover:border-emerald-400/50 hover:bg-white/10"
+              >
+                <div>
+                  <p className="text-white">1. Lancer Aube express</p>
+                  <span className="text-xs text-white/60">Obtenez vos premières recommandations de trajectoires.</span>
+                </div>
+                <ArrowUpRight className="h-4 w-4 text-white/50" />
+              </Link>
+              <Link
+                href="/cv-builder"
+                className="flex items-center justify-between rounded-3xl border border-white/10 bg-white/5 px-4 py-3 transition hover:border-emerald-400/50 hover:bg-white/10"
+              >
+                <div>
+                  <p className="text-white">2. Générer votre CV ciblé</p>
+                  <span className="text-xs text-white/60">Activez le créateur de CV et importez vos expériences clés.</span>
+                </div>
+                <ArrowUpRight className="h-4 w-4 text-white/50" />
+              </Link>
+              <Link
+                href="/rise"
+                className="flex items-center justify-between rounded-3xl border border-white/10 bg-white/5 px-4 py-3 transition hover:border-emerald-400/50 hover:bg-white/10"
+              >
+                <div>
+                  <p className="text-white">3. Ouvrir Rise & Luna</p>
+                  <span className="text-xs text-white/60">Préparez une session d’entretien et discutez avec Luna.</span>
+                </div>
+                <ArrowUpRight className="h-4 w-4 text-white/50" />
+              </Link>
+            </div>
+            <p className="text-xs text-white/50">
+              Une fois ces étapes réalisées, vos prochains objectifs apparaîtront automatiquement dans le tableau de bord.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       <section>
         <NextActionCard snapshot={snapshot} />
       </section>
@@ -362,7 +409,7 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-5">
             <div>
-              <div className="flex items-center justify-between text-xs uppercase tracking-wide text-white/40">
+              <div className="flex items-center justify-between text-xs uppercase tracking-wide text-white/60">
                 <span>Progression globale</span>
                 <span>{progressValue}%</span>
               </div>
@@ -392,7 +439,7 @@ export default async function DashboardPage() {
                       </div>
                       <p className="text-xs text-white/60">{step.description}</p>
                     </div>
-                    <ArrowUpRight className="h-4 w-4 text-white/40 transition group-hover:text-emerald-200" />
+                    <ArrowUpRight className="h-4 w-4 text-white/60 transition group-hover:text-emerald-200" />
                   </div>
                 </Link>
               ))}
@@ -409,7 +456,7 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
-              <div className="flex items-center justify-between text-xs uppercase text-white/40">
+              <div className="flex items-center justify-between text-xs uppercase text-white/60">
                 <span>Résumé CV Phoenix</span>
                 <Link href="/cv-builder" className="inline-flex items-center gap-2 text-emerald-200 hover:text-emerald-100">
                   Ouvrir <ArrowUpRight className="h-3.5 w-3.5" />
@@ -420,7 +467,7 @@ export default async function DashboardPage() {
               </p>
             </div>
             <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
-              <div className="flex items-center justify-between text-xs uppercase text-white/40">
+              <div className="flex items-center justify-between text-xs uppercase text-white/60">
                 <span>Lettre motivée</span>
                 <Link
                   href={latestLetter ? `/letters?draftId=${latestLetter.id}` : '/letters'}
@@ -464,7 +511,7 @@ export default async function DashboardPage() {
                       )}
                     </div>
                     <p className="text-xs text-white/60">{event.description}</p>
-                    <div className="mt-1 flex items-center gap-2 text-xs text-white/40">
+                    <div className="mt-1 flex items-center gap-2 text-xs text-white/60">
                       <CalendarClock className="h-3.5 w-3.5" />
                       {formatDate(event.date)}
                     </div>

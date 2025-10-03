@@ -7,7 +7,7 @@ export default function RisePage() {
     <div className="space-y-10">
       <section className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-2">
-          <h1 className="text-3xl font-semibold text-white">Rise — Interview Studio</h1>
+          <h1 className="text-3xl font-semibold text-white">Rise — Studio entretien</h1>
           <p className="text-sm text-white/60">
             Entraînez-vous sur des questions ciblées et obtenez un feedback dynamique avec Luna.
           </p>

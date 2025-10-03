@@ -75,15 +75,15 @@ function RegisterPageContent() {
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-2">
-          <label className="text-xs font-semibold uppercase tracking-wider text-white/40">Nom complet</label>
+          <label className="text-xs font-semibold uppercase tracking-wider text-white/60">Nom complet</label>
           <Input placeholder="Votre nom" {...form.register('name')} />
         </div>
         <div className="space-y-2">
-          <label className="text-xs font-semibold uppercase tracking-wider text-white/40">Email</label>
+          <label className="text-xs font-semibold uppercase tracking-wider text-white/60">Email</label>
           <Input type="email" placeholder="vous@exemple.com" {...form.register('email')} />
         </div>
         <div className="space-y-2">
-          <label className="text-xs font-semibold uppercase tracking-wider text-white/40">Mot de passe</label>
+          <label className="text-xs font-semibold uppercase tracking-wider text-white/60">Mot de passe</label>
           <Input type="password" placeholder="Minimum 8 caractères" {...form.register('password')} />
         </div>
         {error && <p className="text-sm text-rose-400">{error}</p>}

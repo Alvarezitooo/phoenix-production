@@ -28,6 +28,33 @@ type InterviewQuestion = {
   guidance: string;
 };
 
+const RIASEC_SECTOR_MAP: Record<string, { sectors: string[]; keywords: string[] }> = {
+  realistic: {
+    sectors: ['Industrie', 'Opérations', 'Logistique', 'Maintenance'],
+    keywords: ['technicien', 'responsable maintenance', 'coordinateur logistique'],
+  },
+  investigative: {
+    sectors: ['Recherche', 'Data', 'Conseil scientifique', 'Analyse économique'],
+    keywords: ['analyste', 'chargé d’études', 'consultant data'],
+  },
+  artistic: {
+    sectors: ['Culture', 'Communication', 'UX/UI', 'Marketing de contenu'],
+    keywords: ['designer', 'responsable éditorial', 'chef de projet culturel'],
+  },
+  social: {
+    sectors: ['RH', 'Education', 'Coaching', 'Santé', 'Economie sociale'],
+    keywords: ['coach', 'formateur', 'responsable RH', 'chargé d’accompagnement'],
+  },
+  enterprising: {
+    sectors: ['Entrepreneuriat', 'Développement commercial', 'Gestion de projets'],
+    keywords: ['business developer', 'chef de projet', 'directeur de centre'],
+  },
+  conventional: {
+    sectors: ['Finance', 'Gestion', 'Administration', 'Supply chain'],
+    keywords: ['contrôleur de gestion', 'responsable administratif', 'gestionnaire paie'],
+  },
+};
+
 type AssessmentPayload = {
   mode: AssessmentMode;
   bigFive: Record<string, number>;
@@ -80,35 +107,37 @@ type ResumeGenerationResult = {
 
 const FALLBACK_RECOMMENDATIONS: CareerRecommendation[] = [
   {
-    careerTitle: 'Product Manager',
+    careerTitle: 'Responsable innovation sociale',
     compatibilityScore: 86,
-    sector: 'Technology',
+    sector: 'Économie sociale et solidaire',
     description:
-      'Lead cross-functional teams to build digital products that solve real customer problems with data-informed decisions.',
-    requiredSkills: ['Leadership', 'Strategic Thinking', 'Data Analysis', 'Communication'],
-    salaryRange: '$95k – $140k',
-    quickWins: ['Cartographier vos KPIs prioritaires', 'Rencontrer 3 utilisateurs pour confirmer les besoins'],
-    developmentFocus: ['Renforcer la gouvernance produit', 'Structurer la prise de décision data-driven'],
+      'Piloter des projets à impact au sein d’associations ou de collectivités, en mobilisant partenaires publics et privés pour répondre à des enjeux sociétaux concrets.',
+    requiredSkills: ['Gestion de projet', 'Mobilisation de partenaires', 'Analyse d’impact', 'Communication'],
+    salaryRange: '45 000 € – 60 000 € bruts/an',
+    quickWins: ['Identifier trois partenaires potentiels pour un programme pilote', 'Construire un indicateur d’impact à partager au comité de pilotage'],
+    developmentFocus: ['Financement de l’innovation sociale', 'Mesure d’impact avancée'],
   },
   {
-    careerTitle: 'UX Researcher',
-    compatibilityScore: 82,
-    sector: 'Design',
-    description: 'Design empathetic user experiences by conducting qualitative and quantitative research activities.',
-    requiredSkills: ['User Interviews', 'Research Synthesis', 'Prototyping', 'Storytelling'],
-    salaryRange: '$80k – $120k',
-    quickWins: ["Planifier un diary study express", "Mettre à jour la librairie d'insights"],
-    developmentFocus: ['Approfondir les méthodes quantitatives', 'Formaliser la restitution aux stakeholders'],
+    careerTitle: 'Consultant data secteur public',
+    compatibilityScore: 83,
+    sector: 'Conseil & Data',
+    description:
+      'Accompagner ministères et collectivités dans l’exploitation de la donnée pour optimiser les politiques publiques et la relation usager.',
+    requiredSkills: ['Analyse statistique', 'Visualisation', 'Gestion de changement', 'Culture service public'],
+    salaryRange: '50 000 € – 70 000 € bruts/an',
+    quickWins: ['Réaliser un diagnostic express des jeux de données disponibles', 'Proposer un tableau de bord à destination des décideurs terrain'],
+    developmentFocus: ['Data storytelling', 'Conduite de projets réglementaires'],
   },
   {
-    careerTitle: 'People & Culture Lead',
+    careerTitle: 'Chargé·e de mission transition écologique',
     compatibilityScore: 78,
-    sector: 'Human Resources',
-    description: 'Build inclusive work environments focused on coaching, employee engagement, and talent development.',
-    requiredSkills: ['Coaching', 'Conflict Resolution', 'Policy Design', 'Analytics'],
-    salaryRange: '$85k – $110k',
-    quickWins: ['Lancer un feedback pulse', 'Structurer un plan de coaching managers'],
-    developmentFocus: ['Industrialiser les rituels people', "Déployer une stratégie d'analytics RH"],
+    sector: 'Transition énergétique & climat',
+    description:
+      'Coordonner des plans d’action climat au sein d’entreprises ou de collectivités, en impliquant les métiers autour d’objectifs bas carbone.',
+    requiredSkills: ['Gestion de programmes', 'Analyse carbone', 'Animation d’ateliers', 'Veille réglementaire'],
+    salaryRange: '42 000 € – 58 000 € bruts/an',
+    quickWins: ['Cartographier les initiatives bas carbone existantes', 'Construire un plan de sensibilisation collaborateurs sur 3 mois'],
+    developmentFocus: ['Financement de la transition', 'Pilotage d’indicateurs climat'],
   },
 ];
 
@@ -141,6 +170,31 @@ async function callProvider(prompt: string, provider: Provider) {
   return null;
 }
 
+function buildRiasecContext(riasecScores: Record<string, number>) {
+  const entries = Object.entries(riasecScores)
+    .map(([key, value]) => [key.toLowerCase(), value] as const)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
+
+  const sectors = new Set<string>();
+  const keywords = new Set<string>();
+
+  for (const [code] of entries) {
+    const mapping = RIASEC_SECTOR_MAP[code] ?? null;
+    if (mapping) {
+      mapping.sectors.forEach((sector) => sectors.add(sector));
+      mapping.keywords.forEach((keyword) => keywords.add(keyword));
+    }
+  }
+
+  if (sectors.size === 0 && keywords.size === 0) return null;
+
+  return {
+    sectors: Array.from(sectors).slice(0, 5),
+    keywords: Array.from(keywords).slice(0, 7),
+  };
+}
+
 async function callWithFallback(prompt: string) {
   const providers: Provider[] = [];
   if (gemini) providers.push('gemini');
@@ -170,11 +224,20 @@ export async function getCareerRecommendations(payload: AssessmentPayload) {
   const cached = await getCachedResponse<{ recommendations: CareerRecommendation[] }>(cacheKey);
   if (cached) return cached.recommendations;
 
-  const basePrompt = `Candidate data: ${JSON.stringify(payload)}.`;
+  const basePrompt = `Données candidat : ${JSON.stringify(payload)}.`;
+  const riasecContext = buildRiasecContext(payload.riasec);
+  const extraContext = riasecContext
+    ? `Réponds strictement en français et contextualise pour le marché de l’emploi en France. Varie les secteurs proposés en t’appuyant sur : ${riasecContext.sectors.join(
+        ', ',
+      )}. Utilise ou combine les mots-clés suivants si pertinent : ${riasecContext.keywords.join(
+        ', ',
+      )}. Évite les doublons (pas plus d’un métier par secteur) et proscris les intitulés trop génériques (ex. “Product Manager”) sauf justification claire.`
+    : 'Réponds en français, contextualise pour le marché français et propose des secteurs variés en évitant la répétition de métiers tech génériques.';
+
   const prompt =
     payload.mode === 'QUICK'
-      ? `You are an experienced career strategist. From the information provided, surface the single most relevant job path for an express diagnostic. Respond as JSON with key "recommendations" containing an array with exactly one object including: careerTitle, compatibilityScore (0-100), sector, description (max 3 sentences), requiredSkills (max 3 items), salaryRange (string), quickWins (array of 2 actionable bullet points). ${basePrompt}`
-      : `You are an experienced career strategist. Using the detailed profile, craft three job recommendations that unlock longer-term mobility. Respond as JSON with key "recommendations" containing exactly three objects with: careerTitle, compatibilityScore (0-100), sector, description (max 4 sentences), requiredSkills (5 tailored skills), salaryRange (string), developmentFocus (array of 2-3 upskilling themes). ${basePrompt}`;
+      ? `Tu es une stratège de carrière senior. À partir des informations fournies, propose un seul métier prioritaire pour un diagnostic express. Retourne un JSON avec la clé "recommendations" contenant exactement UN objet avec : careerTitle, compatibilityScore (0-100), sector, description (3 phrases maximum), requiredSkills (3 compétences clés maximum), salaryRange (texte), quickWins (tableau de 2 actions concrètes). ${basePrompt} ${extraContext}`
+      : `Tu es une stratège de carrière senior. À partir du profil détaillé, propose trois métiers complémentaires permettant une mobilité durable. Retourne un JSON avec la clé "recommendations" contenant exactement TROIS objets avec : careerTitle, compatibilityScore (0-100), sector, description (4 phrases maximum), requiredSkills (5 compétences précises), salaryRange (texte), developmentFocus (tableau de 2 à 3 thèmes d’upskilling). ${basePrompt} ${extraContext}`;
 
   const response = await callWithFallback(prompt);
 
@@ -215,11 +278,20 @@ export async function generateCoverLetter(payload: CoverLetterPayload) {
   const cached = await getCachedResponse<CoverLetterResult>(cacheKey);
   if (cached) return cached.letterMarkdown;
 
-  const languageLabel = payload.language === 'en' ? 'English' : 'French';
-  const toneLabel = payload.tone;
-  const hooks = payload.alignmentHooks?.length ? payload.alignmentHooks.join(' | ') : 'Relier vos motivations à la culture de l’entreprise.';
+  const languageLabel = payload.language === 'en' ? 'anglais' : 'français';
+  const toneMap: Record<CoverLetterPayload['tone'], string> = {
+    professional: 'professionnel',
+    friendly: 'chaleureux',
+    impactful: 'percutant',
+    storytelling: 'narratif',
+    executive: 'exécutif',
+  };
+  const toneLabel = toneMap[payload.tone];
+  const hooks = payload.alignmentHooks?.length ? payload.alignmentHooks.join(' | ') : "Relier vos motivations à la culture de l’entreprise.";
 
-  const prompt = `You are a senior career copywriter. Craft a ${languageLabel} cover letter in Markdown for the ${payload.jobTitle} role at ${payload.company}. Tone must be ${toneLabel}. Structure the output as JSON with keys: letterMarkdown (string Markdown with intro, impact section, alignment with culture, closing), bulletSummary (array of 3 actionable bullet points summarizing the letter), callToAction (string), alignScore (0-100 estimate). Mention highlights: ${payload.highlights.join(', ')}. Hiring manager: ${payload.hiringManager ?? 'not specified'}. Alignment hooks: ${hooks}. Resume summary: ${payload.resumeSummary}. Ensure the Markdown includes salutations appropriate to ${languageLabel} culture.`;
+  const prompt = `Tu es un copywriter carrière senior. Rédige en ${languageLabel} une lettre de motivation pour le poste ${payload.jobTitle} chez ${payload.company}. Le ton doit être ${toneLabel}. Retourne un JSON avec les clés : letterMarkdown (Markdown avec introduction, section impact, section alignement culturel, conclusion), bulletSummary (tableau de 3 puces résumant la lettre), callToAction (phrase de conclusion), alignScore (estimation 0-100). Mets en avant les éléments suivants : ${payload.highlights.join(
+    ', ',
+  )}. Nom du recruteur : ${payload.hiringManager ?? 'non précisé'}. Points d’alignement : ${hooks}. Résumé de CV : ${payload.resumeSummary}. Assure-toi que la lettre respecte les codes de politesse du ${languageLabel}.`;
 
   const response = await callWithFallback(prompt);
 
@@ -241,15 +313,17 @@ export async function generateInterviewCoachResponse(
   history: Array<{ role: 'user' | 'assistant'; content: string }>,
   focusArea: string,
 ) {
-  const prompt = `You are Luna, a warm but direct interview coach. Continue the conversation. Focus area: ${focusArea}. History: ${JSON.stringify(history)}.`;
+  const prompt = `Tu es Luna, coach d’entretien bienveillante mais directe. Poursuis la conversation en guidant l’utilisateur, en t’appuyant sur le focus suivant : ${focusArea}. Historique : ${JSON.stringify(
+    history,
+  )}. Réponds en français, propose des questions de relance concrètes et des conseils actionnables.`;
   return callWithFallback(prompt);
 }
 
 export async function analyzeAssessmentResults(payload: AssessmentPayload) {
   const modePrompt =
     payload.mode === 'QUICK'
-      ? `Produce a concise snapshot (max 5 sentences) highlighting dominant personality drivers, key motivation levers, and one immediate action to test alignment. Close with a sentence teasing what a complete assessment would unlock.`
-      : `Draft a structured briefing with two short paragraphs: first synthesise Big Five + RIASEC dominant factors and how they support the candidate narrative, then outline two to three development priorities referencing strengths, growth areas, and interests. End with a CTA suggesting the best Phoenix module to activate next.`;
+      ? `Rédige un aperçu synthétique (5 phrases maximum) mettant en avant les moteurs de personnalité dominants, les leviers de motivation et une action immédiate pour tester l’alignement. Termine par une phrase expliquant ce que débloquerait l’analyse complète.`
+      : `Rédige un brief structuré en deux courts paragraphes : le premier synthétise les facteurs dominants Big Five + RIASEC et la façon dont ils nourrissent la narration professionnelle, le second propose deux à trois priorités de développement en s’appuyant sur les forces, axes de progression et centres d’intérêt. Conclus par un appel à l’action vers le module Phoenix le plus pertinent pour la suite.`;
 
   const response = await callWithFallback(`${modePrompt}\nData: ${JSON.stringify(payload)}`);
   return response;
@@ -311,7 +385,15 @@ export async function generateResume(payload: ResumeGenerationPayload) {
 
   const contextSummary = contextBlocks.length > 0 ? contextBlocks.join('\n') : 'No additional Phoenix context provided.';
 
-  const prompt = `You are a senior resume strategist crafting a ${payload.template} resume for the ${payload.targetRole} role. Tone should be ${tone} and the document must be written in ${language === 'en' ? 'English' : 'French'}. Use Markdown with sections: Header, Summary, Key Achievements, Professional Experience, Skills. Highlight measurable impact, align with the target role, and respect ATS best practices (short bullet sentences, metrics, keywords). Careers context from Phoenix ecosystem:\n${contextSummary}.\nBase summary:${payload.summary}.\nExperience blocks:${JSON.stringify(payload.experiences)}.\nSkills:${payload.skills.join(', ')}.\nRespond strictly as JSON with keys: resumeMarkdown (string Markdown), atsChecklist (array of 4 concise bullet strings), alignScore (0-100 number estimating alignment with target role), nextActions (array of 3 coaching actions referencing Phoenix modules when relevant).`;
+  const toneMap: Record<NonNullable<ResumeGenerationPayload['tone']>, string> = {
+    impact: 'orienté impact',
+    leadership: 'leadership',
+    international: 'international',
+    default: 'équilibré',
+  };
+  const prompt = `Tu es une stratège CV senior. Conçois un CV format ${payload.template} pour le rôle ${payload.targetRole}. Le ton doit être ${toneMap[tone] ?? tone} et le document doit être rédigé en ${language === 'en' ? 'anglais' : 'français'}. Utilise du Markdown structuré avec les sections : En-tête, Résumé, Réalisations clés, Expériences professionnelles, Compétences. Mets en avant des résultats chiffrés, adapte les mots-clés au rôle cible et respecte les bonnes pratiques ATS (phrases courtes, verbes d’action). Contexte issu de l’écosystème Phoenix :\n${contextSummary}.\nRésumé de base : ${payload.summary}.\nBlocs d’expérience : ${JSON.stringify(payload.experiences)}.\nCompétences : ${payload.skills.join(
+    ', ',
+  )}.\nRéponds exclusivement en JSON avec les clés : resumeMarkdown (Markdown), atsChecklist (tableau de 4 puces courtes), alignScore (nombre 0-100 estimant l’alignement), nextActions (tableau de 3 actions de coaching liées aux modules Phoenix quand pertinent).`;
 
   const response = await callWithFallback(prompt);
 
@@ -358,7 +440,12 @@ export async function getInterviewPracticeSet(payload: { role: string; focus: 'b
   const cached = await getCachedResponse<{ questions: InterviewQuestion[] }>(cacheKey);
   if (cached) return cached.questions;
 
-  const prompt = `Generate six interview questions for a ${payload.role} role focused on ${payload.focus}. Respond in JSON with array 'questions' and each item having question, competency, and guidance.`;
+  const focusLabels: Record<typeof payload.focus, string> = {
+    behavioral: 'comportemental',
+    strategic: 'stratégique',
+    technical: 'technique',
+  };
+  const prompt = `Génère six questions d’entretien pour un rôle ${payload.role} avec un focus ${focusLabels[payload.focus]}. Réponds en JSON avec la clé "questions" contenant des objets { question, competency, guidance }. Assure-toi que les questions sont adaptées au marché français.`;
   const response = await callWithFallback(prompt);
 
   try {

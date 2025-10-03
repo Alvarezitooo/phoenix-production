@@ -56,7 +56,15 @@ export async function GET() {
     },
   });
 
-  return NextResponse.json({ assessments });
+  const formatted = assessments.map((assessment) => {
+    const results = (assessment.results ?? {}) as { summary?: string; recommendations?: CareerRecommendation[] };
+    return {
+      ...assessment,
+      results,
+    };
+  });
+
+  return NextResponse.json({ assessments: formatted });
 }
 
 export async function POST(request: Request) {

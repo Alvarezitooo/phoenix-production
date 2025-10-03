@@ -1,14 +1,15 @@
 import Link from 'next/link';
 import { getAuthSession } from '@/lib/auth';
 import { SignOutButton } from '@/components/auth/sign-out-button';
-import { Menu, Rocket } from 'lucide-react';
+import { Rocket } from 'lucide-react';
+import { MobileMenu, type HeaderNavItem } from '@/components/layout/mobile-menu';
 
-const navItems = [
-  { href: '/aube', label: 'Aube' },
-  { href: '/cv-builder', label: 'CV Builder' },
-  { href: '/letters', label: 'Letters' },
-  { href: '/rise', label: 'Rise' },
-  { href: '/pricing', label: 'Tarifs' },
+const navItems: HeaderNavItem[] = [
+  { href: '/aube', label: 'Aube – Découverte' },
+  { href: '/cv-builder', label: 'Créateur de CV' },
+  { href: '/letters', label: 'Studio Lettres' },
+  { href: '/rise', label: 'Rise – Entretiens' },
+  { href: '/pricing', label: 'Offres & tarifs' },
 ];
 
 export async function SiteHeader() {
@@ -52,9 +53,7 @@ export async function SiteHeader() {
               </Link>
             </div>
           )}
-          <button className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white md:hidden">
-            <Menu className="h-5 w-5" />
-          </button>
+          <MobileMenu navItems={navItems} isAuthenticated={isAuthenticated} />
         </div>
       </div>
     </header>

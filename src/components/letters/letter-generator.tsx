@@ -448,7 +448,7 @@ export function LetterGenerator() {
           <div className="space-y-5">
             {matches.length > 0 && (
               <div className="space-y-3">
-                <div className="flex items-center justify-between text-xs uppercase tracking-wide text-white/40">
+                <div className="flex items-center justify-between text-xs uppercase tracking-wide text-white/60">
                   <span>Trajectoires Aube</span>
                   <Button type="button" variant="ghost" className="text-xs" onClick={() => autofillFromMatch()}>
                     Pré-remplir automatiquement
@@ -475,17 +475,17 @@ export function LetterGenerator() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-wide text-white/40">Poste ciblé</label>
+                <label className="text-xs font-semibold uppercase tracking-wide text-white/60">Poste ciblé</label>
                 <Input placeholder="Ex : Product Marketing Manager" {...form.register('jobTitle')} />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-wide text-white/40">Entreprise</label>
+                <label className="text-xs font-semibold uppercase tracking-wide text-white/60">Entreprise</label>
                 <Input placeholder="Nom de l’entreprise" {...form.register('company')} />
               </div>
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wide text-white/40">Contact (facultatif)</label>
+              <label className="text-xs font-semibold uppercase tracking-wide text-white/60">Contact (facultatif)</label>
               <Input placeholder="Ex : Madame Dupont — VP Marketing" {...form.register('hiringManager')} />
             </div>
           </div>
@@ -494,7 +494,7 @@ export function LetterGenerator() {
         return (
           <div className="space-y-5">
             <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wide text-white/40">Langue</label>
+              <label className="text-xs font-semibold uppercase tracking-wide text-white/60">Langue</label>
               <div className="grid gap-2 sm:grid-cols-2">
                 {languageOptions.map((lang) => (
                   <button
@@ -519,7 +519,7 @@ export function LetterGenerator() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wide text-white/40">Tone</label>
+              <label className="text-xs font-semibold uppercase tracking-wide text-white/60">Tone</label>
               <div className="grid gap-2 sm:grid-cols-2">
                 {toneOptions.map((tone) => (
                   <button
@@ -545,7 +545,7 @@ export function LetterGenerator() {
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold uppercase tracking-wide text-white/40">Hooks culturels</label>
+                <label className="text-xs font-semibold uppercase tracking-wide text-white/60">Hooks culturels</label>
                 <Button type="button" variant="ghost" className="text-xs" onClick={() => hooksArray.append('')}>
                   Ajouter
                 </Button>
@@ -578,7 +578,7 @@ export function LetterGenerator() {
         return (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold uppercase tracking-wide text-white/40">Highlights</label>
+              <label className="text-xs font-semibold uppercase tracking-wide text-white/60">Highlights</label>
               <Button type="button" variant="ghost" className="text-xs" onClick={() => highlightsArray.append('')}>
                 Ajouter
               </Button>
@@ -609,14 +609,14 @@ export function LetterGenerator() {
       case 'synthesis':
         return (
           <div className="space-y-3">
-            <label className="text-xs font-semibold uppercase tracking-wide text-white/40">Résumé CV Phoenix</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-white/60">Résumé CV Phoenix</label>
             <Textarea
               rows={5}
               placeholder="Résumez vos forces, secteurs clés, preuves chiffrées."
               {...form.register('resumeSummary')}
             />
             {context?.resume?.summary && (
-              <p className="text-[11px] text-white/40">
+              <p className="text-[11px] text-white/60">
                 Dernière synchronisation CV détectée. Ajoutez des preuves chiffrées ou éléments récents pour contextualiser.
               </p>
             )}
@@ -704,7 +704,7 @@ export function LetterGenerator() {
                         className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left"
                       >
                         <div>
-                          <span className="text-[11px] uppercase tracking-wide text-white/40">Étape {index + 1}</span>
+                          <span className="text-[11px] uppercase tracking-wide text-white/60">Étape {index + 1}</span>
                           <p className="text-sm font-semibold text-white">{step.title}</p>
                           <p className="text-xs text-white/50">{step.description}</p>
                         </div>
@@ -776,7 +776,7 @@ export function LetterGenerator() {
                         <span>{draft.title ?? 'Lettre sans titre'}</span>
                         {draft.alignScore !== null && <Badge className="border-emerald-400/40 text-emerald-200">Score {Math.round(draft.alignScore)}%</Badge>}
                       </div>
-                      <p className="text-[11px] text-white/40">{new Date(draft.updatedAt).toLocaleString()}</p>
+                      <p className="text-[11px] text-white/60">{new Date(draft.updatedAt).toLocaleString()}</p>
                       <div className="mt-2 flex gap-2">
                         <Button type="button" variant="secondary" className="text-xs" onClick={() => handleLoadDraft(draft.id)}>
                           Charger ce brouillon
@@ -830,7 +830,7 @@ export function LetterGenerator() {
                 <code className="ml-2 rounded bg-white/10 px-1.5 py-0.5 text-xs">npm run dev</code>
               </li>
             </ol>
-            <p className="text-xs text-white/40">
+            <p className="text-xs text-white/60">
               Exemples de chemins : macOS <code className="rounded bg-white/10 px-1.5 py-0.5 text-[10px]">/Applications/Chromium.app/Contents/MacOS/Chromium</code> •
               Linux <code className="rounded bg-white/10 px-1.5 py-0.5 text-[10px]">/usr/bin/chromium</code>.
             </p>
