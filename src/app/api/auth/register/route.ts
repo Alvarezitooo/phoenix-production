@@ -3,13 +3,13 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { hash } from 'bcryptjs';
 
-const DEFAULT_PLAN = (process.env.DEFAULT_SUBSCRIPTION_PLAN ?? 'ESSENTIAL') as 'ESSENTIAL' | 'PRO';
+const DEFAULT_PLAN = (process.env.DEFAULT_SUBSCRIPTION_PLAN ?? 'DISCOVERY') as 'DISCOVERY' | 'ESSENTIAL' | 'PRO';
 
 const schema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
   password: z.string().min(8),
-  plan: z.enum(['ESSENTIAL', 'PRO']).optional(),
+  plan: z.enum(['DISCOVERY', 'ESSENTIAL', 'PRO']).optional(),
 });
 
 export async function POST(request: Request) {
@@ -23,13 +23,20 @@ export async function POST(request: Request) {
     }
 
     const hashedPassword = await hash(data.password, 12);
+    const selectedPlan = (data.plan as typeof DEFAULT_PLAN | undefined) ?? DEFAULT_PLAN;
+    const isDiscovery = selectedPlan === 'DISCOVERY';
+    const periodStart = new Date();
+    const periodEnd = isDiscovery ? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) : null;
+
     await prisma.user.create({
       data: {
         name: data.name,
         email: data.email.toLowerCase(),
         hashedPassword,
-        subscriptionPlan: (data.plan as typeof DEFAULT_PLAN | undefined) ?? DEFAULT_PLAN,
-        subscriptionStatus: 'INACTIVE',
+        subscriptionPlan: selectedPlan,
+        subscriptionStatus: isDiscovery ? 'ACTIVE' : 'INACTIVE',
+        currentPeriodStart: isDiscovery ? periodStart : null,
+        currentPeriodEnd: isDiscovery ? periodEnd : null,
       },
     });
 

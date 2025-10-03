@@ -12,6 +12,15 @@ const redirectOrCheckout = async (
   isAuthenticated: boolean,
   setLoading: (value: boolean) => void,
 ) => {
+  if (plan === 'DISCOVERY') {
+    if (isAuthenticated) {
+      router.push('/dashboard');
+    } else {
+      router.push('/auth/register');
+    }
+    return;
+  }
+
   if (!isAuthenticated) {
     router.push(`/auth/register?plan=${plan}`);
     return;
@@ -47,6 +56,7 @@ export function PlanCard(props: {
   description: string;
   perks: string[];
   highlight?: boolean;
+  ctaLabel?: string;
 }) {
   const router = useRouter();
   const { status } = useSession();
@@ -75,10 +85,10 @@ export function PlanCard(props: {
       </div>
       <Button
         className="mt-6 w-full"
-        loading={loading}
+        loading={loading && props.plan !== 'DISCOVERY'}
         onClick={() => redirectOrCheckout(props.plan, router, status === 'authenticated', setLoading)}
       >
-        Choisir ce plan
+        {props.ctaLabel ?? 'Choisir ce plan'}
       </Button>
     </div>
   );

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getAuthSession } from '@/lib/auth';
 import { generateCoverLetter } from '@/lib/ai';
-import { assertActiveSubscription } from '@/lib/subscription';
+import { assertActiveSubscription, assertWithinQuota } from '@/lib/subscription';
 import { prisma } from '@/lib/prisma';
 
 const generateSchema = z.object({
@@ -53,7 +53,26 @@ export async function POST(request: Request) {
 
   try {
     const payload = generateSchema.parse(await request.json());
-    await assertActiveSubscription(session.user.id);
+    const subscription = await assertActiveSubscription(session.user.id);
+    try {
+      await assertWithinQuota(session.user.id, 'letterGenerations');
+    } catch (error) {
+      if (error instanceof Error && error.message === 'QUOTA_EXCEEDED') {
+        return NextResponse.json(
+          {
+            message:
+              subscription?.subscriptionPlan === 'DISCOVERY'
+                ? 'Le plan Découverte permet uniquement de visualiser un aperçu de lettre. Passez au plan Essentiel pour générer vos lettres en illimité.'
+                : 'Quota mensuel atteint pour les lettres. Passez au plan Pro pour débloquer l’illimité.',
+          },
+          { status: 429 },
+        );
+      }
+      if (error instanceof Error && error.message === 'SUBSCRIPTION_REQUIRED') {
+        return NextResponse.json({ message: 'Abonnement requis pour générer une lettre.' }, { status: 402 });
+      }
+      throw error;
+    }
 
     const content = await generateCoverLetter(payload);
 

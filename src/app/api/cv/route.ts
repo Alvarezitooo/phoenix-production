@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getAuthSession } from '@/lib/auth';
 import { generateResume } from '@/lib/ai';
 import { prisma } from '@/lib/prisma';
-import { assertActiveSubscription } from '@/lib/subscription';
+import { assertActiveSubscription, assertWithinQuota } from '@/lib/subscription';
 
 const contextSchema = z
   .object({
@@ -60,7 +60,26 @@ export async function POST(request: Request) {
 
   try {
     const payload = schema.parse(await request.json());
-    await assertActiveSubscription(session.user.id);
+    const subscription = await assertActiveSubscription(session.user.id);
+    try {
+      await assertWithinQuota(session.user.id, 'resumeGenerations');
+    } catch (error) {
+      if (error instanceof Error && error.message === 'QUOTA_EXCEEDED') {
+        return NextResponse.json(
+          {
+            message:
+              subscription?.subscriptionPlan === 'DISCOVERY'
+                ? 'Le plan Découverte inclut une seule génération de CV. Passez au plan Essentiel pour débloquer le créateur de CV illimité.'
+                : 'Quota atteint pour les générations de CV ce mois-ci.',
+          },
+          { status: 429 },
+        );
+      }
+      if (error instanceof Error && error.message === 'SUBSCRIPTION_REQUIRED') {
+        return NextResponse.json({ message: 'Abonnement requis pour générer un CV.' }, { status: 402 });
+      }
+      throw error;
+    }
 
     const result = await generateResume({
       targetRole: payload.targetRole,

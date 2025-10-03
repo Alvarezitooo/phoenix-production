@@ -9,43 +9,72 @@ type PlanConfig = {
   limits: {
     assessments: number | 'unlimited';
     aiMessages: number | 'unlimited';
+    riseSessions: number | 'unlimited';
+    resumeGenerations: number | 'unlimited';
+    letterGenerations: number | 'unlimited';
   };
 };
 
 type UsageKey = keyof PlanConfig['limits'];
 
 export const PLAN_CONFIG: Record<SubscriptionPlan, PlanConfig> = {
+  DISCOVERY: {
+    priceIdEnv: 'STRIPE_PRICE_DISCOVERY',
+    label: 'Découverte',
+    monthlyPrice: 0,
+    perks: [
+      '1 analyse Aube Express',
+      'Génération CV limitée',
+      '3 interactions Rise/Luna',
+    ],
+    limits: {
+      assessments: 1,
+      aiMessages: 3,
+      riseSessions: 1,
+      resumeGenerations: 1,
+      letterGenerations: 0,
+    },
+  },
   ESSENTIAL: {
     priceIdEnv: 'STRIPE_PRICE_ESSENTIAL',
     label: 'Essentiel',
-    monthlyPrice: 17.99,
+    monthlyPrice: 19.9,
     perks: [
-      'Aube Quick illimité',
-      'CV Builder + Letters illimités',
-      '10 sessions Rise/Luna par mois',
+      'Aube Express illimitée',
+      'Créateur de CV + Studio Lettres (5/mois)',
+      '20 interactions Rise/Luna par mois',
     ],
     limits: {
-      assessments: 8,
-      aiMessages: 40,
+      assessments: 12,
+      aiMessages: 20,
+      riseSessions: 'unlimited',
+      resumeGenerations: 'unlimited',
+      letterGenerations: 5,
     },
   },
   PRO: {
     priceIdEnv: 'STRIPE_PRICE_PRO',
     label: 'Pro',
-    monthlyPrice: 29.99,
+    monthlyPrice: 34.9,
     perks: [
-      'Aube Complete + Quick illimités',
+      'Aube Complete illimitée',
       'Exports premium (PDF, Notion, ATS)',
-      'Sessions Rise & Luna illimitées',
+      'Rise & Luna illimités + support prioritaire',
     ],
     limits: {
       assessments: 'unlimited',
       aiMessages: 'unlimited',
+      riseSessions: 'unlimited',
+      resumeGenerations: 'unlimited',
+      letterGenerations: 'unlimited',
     },
   },
 };
 
 export function getStripePriceId(plan: SubscriptionPlan) {
+  if (plan === 'DISCOVERY') {
+    throw new Error('Discovery plan does not require Stripe price id');
+  }
   const envKey = PLAN_CONFIG[plan].priceIdEnv;
   const priceId = process.env[envKey];
   if (!priceId) {
@@ -56,6 +85,16 @@ export function getStripePriceId(plan: SubscriptionPlan) {
 
 export function canAccessModule(plan: SubscriptionPlan, module: 'aube-complete' | 'rise-unlimited') {
   if (plan === 'PRO') return true;
+  if (plan === 'ESSENTIAL') {
+    if (module === 'aube-complete') return false;
+    if (module === 'rise-unlimited') return false;
+    return true;
+  }
+  if (plan === 'DISCOVERY') {
+    if (module === 'aube-complete') return false;
+    if (module === 'rise-unlimited') return false;
+    return false;
+  }
   if (module === 'aube-complete') return false;
   if (module === 'rise-unlimited') return false;
   return true;
@@ -156,6 +195,42 @@ async function computeUsage(userId: string, usage: UsageKey, periodStart: Date, 
       where: {
         userId,
         type: 'CHAT_MESSAGE',
+        createdAt: {
+          gte: periodStart,
+          lt: periodEnd,
+        },
+      },
+    });
+  }
+
+  if (usage === 'riseSessions') {
+    return prisma.riseSession.count({
+      where: {
+        userId,
+        createdAt: {
+          gte: periodStart,
+          lt: periodEnd,
+        },
+      },
+    });
+  }
+
+  if (usage === 'resumeGenerations') {
+    return prisma.resumeDraft.count({
+      where: {
+        userId,
+        createdAt: {
+          gte: periodStart,
+          lt: periodEnd,
+        },
+      },
+    });
+  }
+
+  if (usage === 'letterGenerations') {
+    return prisma.letterDraft.count({
+      where: {
+        userId,
         createdAt: {
           gte: periodStart,
           lt: periodEnd,

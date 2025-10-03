@@ -18,7 +18,7 @@ model User {
   currentPeriodEnd     DateTime?
   stripeCustomerId     String?
   stripeSubscriptionId String?
-  subscriptionPlan     SubscriptionPlan?  @default(ESSENTIAL)
+  subscriptionPlan     SubscriptionPlan?  @default(DISCOVERY)
   subscriptionStatus   SubscriptionStatus @default(INACTIVE)
   currentPeriodStart   DateTime?
   accounts             Account[]
@@ -214,6 +214,7 @@ enum AssessmentStatus {
 }
 
 enum SubscriptionPlan {
+  DISCOVERY
   ESSENTIAL
   PRO
 }

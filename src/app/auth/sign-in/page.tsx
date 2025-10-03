@@ -70,6 +70,7 @@ function SignInContent() {
         <Link href="/auth/register" className="text-emerald-200 hover:text-emerald-100">
           Créer mon espace
         </Link>
+        <span className="block text-[11px] text-white/40">Accès Découverte offert : 1 analyse express, un CV d’essai, 3 échanges avec Luna.</span>
       </p>
     </div>
   );

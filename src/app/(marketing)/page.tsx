@@ -8,7 +8,7 @@ const modules = [
     title: 'Aube — Diagnostic carrière',
     description: 'Croisez Big Five, RIASEC et préférences pour révéler des trajectoires sur mesure.',
     href: '/aube',
-    includedIn: 'Essentiel & Pro',
+    includedIn: 'Découverte (1 essai) + Essentiel & Pro',
     icon: Compass,
     accent: 'from-indigo-500/50 to-indigo-400/30',
   },
@@ -16,7 +16,7 @@ const modules = [
     title: 'Créateur de CV',
     description: 'Générez un CV percutant et compatible ATS aligné sur votre rôle cible en quelques minutes.',
     href: '/cv-builder',
-    includedIn: 'Essentiel & Pro',
+    includedIn: 'Découverte (1 essai) + Essentiel & Pro',
     icon: FileText,
     accent: 'from-purple-500/50 to-purple-400/30',
   },
@@ -24,7 +24,7 @@ const modules = [
     title: 'Studio Lettres',
     description: 'Co-écrivez des lettres motivées ancrées dans vos preuves d’impact et le ton de l’entreprise.',
     href: '/letters',
-    includedIn: 'Essentiel & Pro',
+    includedIn: 'Essentiel (5/mois) & Pro (illimité)',
     icon: Sparkles,
     accent: 'from-emerald-500/40 to-emerald-400/20',
   },
@@ -32,7 +32,7 @@ const modules = [
     title: 'Rise — Studio entretien',
     description: 'Préparez vos entretiens avec Luna, questions ciblées et feedback immédiat.',
     href: '/rise',
-    includedIn: 'Pro (illimité)',
+    includedIn: 'Découverte (3 échanges) + Essentiel & Pro',
     icon: MessageCircle,
     accent: 'from-blue-500/40 to-blue-400/20',
   },
@@ -67,6 +67,7 @@ export default function HomePage() {
               Voir les offres
             </Link>
           </div>
+          <p className="text-xs text-white/50">Accès Découverte offert : 1 analyse express, un CV d’essai et 3 échanges avec Luna.</p>
           <dl className="grid gap-6 sm:grid-cols-3">
             {[
               { label: 'Compatibilité carrière', value: '3 recommandations en temps réel' },
@@ -115,37 +116,51 @@ export default function HomePage() {
         <div className="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-xs uppercase tracking-wide text-emerald-200">Plans mensuels</p>
-            <h2 className="text-3xl font-semibold text-white">Deux formules pour piloter votre carrière</h2>
+            <h2 className="text-3xl font-semibold text-white">Démarrez gratuitement, évoluez selon vos besoins</h2>
             <p className="text-sm text-white/60">
-              Sans crédits à recharger : choisissez un abonnement, profitez des modules, annulez à tout moment.
+              Accès Découverte offert : 1 analyse express, un CV d’essai, 3 échanges avec Luna. Passez à Essentiel ou Pro pour débloquer les parcours complets.
             </p>
           </div>
         </div>
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-3">
+          <PlanCard
+            plan="DISCOVERY"
+            title="Découverte"
+            price="Gratuit"
+            description="Testez Aube, générez un premier CV et dialoguez avec Luna sans engagement."
+            perks={[
+              '1 analyse Aube Express',
+              '1 génération de CV (export Markdown)',
+              '3 interactions Rise/Luna',
+            ]}
+            ctaLabel="Activer mon accès"
+          />
           <PlanCard
             plan="ESSENTIAL"
             title="Essentiel"
-            price="17,99 €/mois"
-            description="Pour clarifier son prochain rôle et optimiser ses candidatures."
+            price="19,90 €/mois"
+            description="Pour structurer ses candidatures et garder une cadence régulière."
             perks={[
-              'Aube Quick illimité',
-              'Créateur de CV et Studio Lettres en accès complet',
-              '10 sessions Rise & Luna par mois',
-              'Exports clés (docx, Markdown)',
+              'Aube Express illimitée',
+              'CV & Lettres (5/mois)',
+              '20 interactions Rise/Luna par mois',
+              'Exports Docx & Markdown',
             ]}
+            ctaLabel="Choisir Essentiel"
           />
           <PlanCard
             plan="PRO"
             title="Pro"
-            price="29,99 €/mois"
-            description="Pour accélérer sa trajectoire et se préparer aux entretiens exigeants."
+            price="34,90 €/mois"
+            description="Pour orchestrer une transition stratégique et se préparer aux entretiens exigeants."
             perks={[
-              'Aube Complete et Quick illimités',
+              'Aube Complete illimitée',
               'Exports premium (PDF, Notion, ATS)',
-              'Sessions Rise & Luna illimitées',
-              'Support prioritaire et coaching guidé',
+              'Rise & Luna illimités',
+              'Support prioritaire + webinaire mensuel',
             ]}
             highlight
+            ctaLabel="Choisir Pro"
           />
         </div>
       </section>

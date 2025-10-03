@@ -27,6 +27,7 @@ function formatDate(isoDate: string): string {
 }
 
 const SUBSCRIPTION_PLAN_LABELS: Record<string, string> = {
+  DISCOVERY: 'Découverte',
   PRO: 'Pro',
   ESSENTIAL: 'Essentiel',
 };
@@ -53,12 +54,22 @@ function computeSubscriptionDisplay(
     | null,
 ): SubscriptionDisplay {
   const status = user?.subscriptionStatus ?? 'INACTIVE';
-  const planKey = user?.subscriptionPlan ?? 'ESSENTIAL';
+  const planKey = user?.subscriptionPlan ?? 'DISCOVERY';
   const planLabel = SUBSCRIPTION_PLAN_LABELS[planKey] ?? planKey;
   const periodEnd = user?.currentPeriodEnd ? new Date(user.currentPeriodEnd).toLocaleDateString('fr-FR') : null;
 
   switch (status) {
     case 'ACTIVE':
+      if (planKey === 'DISCOVERY') {
+        return {
+          planLabel,
+          statusHeadline: 'Découverte en cours',
+          helperText: periodEnd ? `Accès offert jusqu’au ${periodEnd}` : 'Profitez de vos 14 jours offerts.',
+          badgeLabel: 'Accès offert',
+          badgeClass: 'border border-sky-400/40 bg-sky-500/10 text-sky-100',
+          cta: { label: 'Passer à Essentiel', href: '/pricing' },
+        };
+      }
       return {
         planLabel,
         statusHeadline: 'Actif',

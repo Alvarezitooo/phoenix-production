@@ -6,7 +6,7 @@ const stripeSecret = process.env.STRIPE_SECRET_KEY;
 
 export const stripe = stripeSecret
   ? new Stripe(stripeSecret, {
-      apiVersion: '2025-08-27.basil',
+      apiVersion: '2025-09-30.clover',
     })
   : null;
 
@@ -20,6 +20,10 @@ export async function createCheckoutSession(params: {
 }) {
   if (!stripe) {
     throw new Error('Stripe is not configured');
+  }
+
+  if (params.plan === 'DISCOVERY') {
+    throw new Error('Discovery plan does not require a checkout session');
   }
 
   const priceId = getStripePriceId(params.plan);

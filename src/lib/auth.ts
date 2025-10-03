@@ -6,7 +6,7 @@ import { prisma } from './prisma';
 import { getServerSession } from 'next-auth';
 import type { SubscriptionPlan, SubscriptionStatus } from '@prisma/client';
 
-const DEFAULT_PLAN = (process.env.DEFAULT_SUBSCRIPTION_PLAN ?? 'ESSENTIAL') as SubscriptionPlan;
+const DEFAULT_PLAN = (process.env.DEFAULT_SUBSCRIPTION_PLAN ?? 'DISCOVERY') as SubscriptionPlan;
 const INACTIVE_STATUS: SubscriptionStatus = 'INACTIVE';
 
 export const authOptions: NextAuthOptions = {
@@ -111,12 +111,25 @@ export const authOptions: NextAuthOptions = {
     async createUser({ user }) {
       const plan = (user.subscriptionPlan as SubscriptionPlan | null) ?? DEFAULT_PLAN;
       const status = (user.subscriptionStatus as SubscriptionStatus | null) ?? INACTIVE_STATUS;
+      const now = new Date();
+      const data: {
+        subscriptionPlan: SubscriptionPlan;
+        subscriptionStatus: SubscriptionStatus;
+        currentPeriodStart?: Date | null;
+        currentPeriodEnd?: Date | null;
+      } = {
+        subscriptionPlan: plan,
+        subscriptionStatus: status,
+      };
+
+      if (plan === 'DISCOVERY' && status === INACTIVE_STATUS) {
+        data.subscriptionStatus = 'ACTIVE';
+        data.currentPeriodStart = now;
+        data.currentPeriodEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+      }
       await prisma.user.update({
         where: { id: user.id },
-        data: {
-          subscriptionPlan: plan,
-          subscriptionStatus: status,
-        },
+        data,
       });
     },
   },

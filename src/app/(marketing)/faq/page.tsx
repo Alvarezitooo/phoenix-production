@@ -2,7 +2,7 @@ const FAQ_ITEMS = [
   {
     question: 'Phoenix est-il gratuit ? Existe-t-il un essai ?',
     answer:
-      'L’accès nécessite un abonnement Essentiel ou Pro. Nous préparons un parcours découverte gratuit (1 analyse express + aperçu CV) pour valider la proposition de valeur. Inscrivez-vous à la newsletter pour en être informé.',
+      'Oui, un plan Découverte est offert : 1 analyse Aube Express, un CV d’essai et 3 échanges avec Luna. Vous pouvez ensuite passer à Essentiel ou Pro à tout moment pour profiter des parcours complets.',
   },
   {
     question: 'Comment fonctionne Aube ?',

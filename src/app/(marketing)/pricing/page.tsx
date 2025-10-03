@@ -12,37 +12,51 @@ export default function PricingPage() {
       <section className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-lg">
         <div className="space-y-3">
           <p className="text-xs uppercase tracking-wide text-emerald-200">Plans mensuels</p>
-          <h1 className="text-3xl font-semibold text-white">Investissez dans votre prochaine étape professionnelle</h1>
+          <h1 className="text-3xl font-semibold text-white">Commencez gratuitement, évoluez à votre rythme</h1>
           <p className="max-w-2xl text-sm text-white/60">
-            Phoenix propose deux formules simples, sans système de crédits. Chaque abonnement inclut les évaluations, les
-            générateurs de contenus et l’assistant Luna. Changez de plan ou annulez à tout moment.
+            Activez votre accès Découverte pour tester Aube et les livrables Phoenix. Passez ensuite au plan Essentiel ou Pro selon
+            l’intensité de votre recherche : toutes nos offres sont sans engagement, sans système de crédits cachés.
           </p>
         </div>
-        <div className="mt-8 grid gap-6 md:grid-cols-2">
+        <div className="mt-8 grid gap-6 md:grid-cols-3">
+          <PlanCard
+            plan="DISCOVERY"
+            title="Découverte"
+            price="Gratuit"
+            description="Accédez à Aube, au CV et à Luna pour une première exploration sans frais."
+            perks={[
+              '1 analyse Aube Express',
+              '1 génération de CV (export Markdown)',
+              '3 interactions Rise/Luna',
+            ]}
+            ctaLabel="Activer mon accès"
+          />
           <PlanCard
             plan="ESSENTIAL"
             title="Essentiel"
-            price="17,99 €/mois"
-            description="Pour clarifier son prochain rôle et optimiser ses candidatures."
+            price="19,90 €/mois"
+            description="Pour structurer ses candidatures et alimenter ses entretiens."
             perks={[
-              'Aube Quick illimité',
-              'CV Builder et Letters en accès complet',
-              '10 sessions Rise & Luna par mois',
-              'Exports clés (docx, Markdown)',
+              'Aube Express illimitée',
+              'CV & Lettres (5/mois)',
+              '20 interactions Rise/Luna par mois',
+              'Exports Docx & Markdown',
             ]}
+            ctaLabel="Choisir Essentiel"
           />
           <PlanCard
             plan="PRO"
             title="Pro"
-            price="29,99 €/mois"
-            description="Pour accélérer sa trajectoire et se préparer aux entretiens exigeants."
+            price="34,90 €/mois"
+            description="Pour orchestrer une transition stratégique avec un accompagnement intensif."
             perks={[
-              'Aube Complete + Quick illimités',
+              'Aube Complete illimitée',
               'Exports premium (PDF, Notion, ATS)',
-              'Sessions Rise & Luna illimitées',
-              'Support prioritaire et coaching guidé',
+              'Rise & Luna illimités',
+              'Webinaire mensuel & support prioritaire',
             ]}
             highlight
+            ctaLabel="Choisir Pro"
           />
         </div>
       </section>

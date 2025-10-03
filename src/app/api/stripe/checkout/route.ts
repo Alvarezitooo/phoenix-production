@@ -22,6 +22,9 @@ export async function POST(request: Request) {
   try {
     const body = schema.parse(await request.json());
     const plan = body.plan as SubscriptionPlan;
+    if (plan === 'DISCOVERY') {
+      return NextResponse.json({ message: 'Le plan Découverte ne nécessite pas de paiement.' }, { status: 400 });
+    }
     const userRecord = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: { stripeCustomerId: true },

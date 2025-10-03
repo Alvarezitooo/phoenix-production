@@ -40,7 +40,13 @@ function RegisterPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const requestedPlan = (searchParams?.get('plan')?.toUpperCase() as SubscriptionPlan | undefined) ?? 'ESSENTIAL';
+  const requestedPlan = (searchParams?.get('plan')?.toUpperCase() as SubscriptionPlan | undefined) ?? 'DISCOVERY';
+  const planLabels: Record<SubscriptionPlan, string> = {
+    DISCOVERY: 'Plan Découverte',
+    ESSENTIAL: 'Plan Essentiel',
+    PRO: 'Plan Pro',
+  };
+  const displayPlan = planLabels[requestedPlan] ?? planLabels.DISCOVERY;
 
   async function onSubmit(values: FormValues) {
     setError(null);
@@ -69,7 +75,7 @@ function RegisterPageContent() {
         </div>
         <h1 className="text-2xl font-semibold">Créez votre compte</h1>
         <p className="text-sm text-white/60">
-          Activez votre espace Phoenix pour accéder aux modules IA personnalisés ({requestedPlan === 'PRO' ? 'Plan Pro' : 'Plan Essentiel'}).
+          Activez votre espace Phoenix pour accéder aux modules IA personnalisés ({displayPlan}).
         </p>
       </div>
 
