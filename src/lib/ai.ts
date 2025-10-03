@@ -131,7 +131,9 @@ async function callProvider(prompt: string, provider: Provider) {
   }
 
   if (provider === 'gemini' && gemini) {
-    const model = gemini.getGenerativeModel({ model: process.env.GEMINI_MODEL ?? 'gemini-1.5-flash' });
+    const configuredModel = process.env.GEMINI_MODEL ?? 'models/gemini-1.5-flash';
+    const modelId = configuredModel.startsWith('models/') ? configuredModel : `models/${configuredModel}`;
+    const model = gemini.getGenerativeModel({ model: modelId });
     const result = await model.generateContent(prompt);
     return result.response.text();
   }
