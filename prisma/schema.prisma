@@ -1,5 +1,3 @@
-// Prisma schema for Phoenix career development platform
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,6 +5,200 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   String             @id @default(cuid())
+  email                String             @unique
+  name                 String?
+  hashedPassword       String?
+  image                String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  currentPeriodEnd     DateTime?
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  subscriptionPlan     SubscriptionPlan?  @default(ESSENTIAL)
+  subscriptionStatus   SubscriptionStatus @default(INACTIVE)
+  currentPeriodStart   DateTime?
+  accounts             Account[]
+  analyticsEvents      AnalyticsEvent[]
+  assessments          Assessment[]
+  careerMatches        CareerMatch[]
+  conversations        Conversation[]
+  letterDrafts         LetterDraft[]
+  notifications        Notification[]
+  resumeDrafts         ResumeDraft[]
+  riseSessions         RiseSession[]
+  sessions             Session[]
+}
+
+model Assessment {
+  id             String           @id @default(cuid())
+  userId         String
+  mode           AssessmentMode
+  status         AssessmentStatus @default(DRAFT)
+  responses      Json
+  results        Json?
+  completionDate DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  careerMatches  CareerMatch[]
+}
+
+model CareerMatch {
+  id                 String      @id @default(cuid())
+  userId             String
+  assessmentId       String?
+  careerTitle        String
+  compatibilityScore Float
+  sector             String?
+  description        String?
+  requiredSkills     String[]
+  salaryRange        String?
+  details            Json?
+  createdAt          DateTime    @default(now())
+  assessment         Assessment? @relation(fields: [assessmentId], references: [id])
+  user               User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Conversation {
+  id        String              @id @default(cuid())
+  userId    String
+  channel   ConversationChannel @default(LUNA)
+  title     String?
+  messages  Json
+  context   Json?
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  subject   String
+  body      String
+  channel   String
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AnalyticsEvent {
+  id        String             @id @default(cuid())
+  userId    String?
+  type      AnalyticsEventType
+  metadata  Json?
+  createdAt DateTime           @default(now())
+  user      User?              @relation(fields: [userId], references: [id])
+}
+
+model ResumeDraft {
+  id         String           @id @default(cuid())
+  userId     String
+  title      String?
+  template   String
+  tone       String?
+  language   String?
+  version    Int              @default(1)
+  content    Json
+  context    Json?
+  alignScore Float?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feedback   ResumeFeedback[]
+}
+
+model LetterDraft {
+  id         String           @id @default(cuid())
+  userId     String
+  title      String?
+  template   String?
+  tone       String?
+  language   String?
+  content    Json
+  alignScore Float?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feedback   LetterFeedback[]
+}
+
+model LetterFeedback {
+  id        String      @id @default(cuid())
+  draftId   String
+  section   String
+  message   String
+  createdAt DateTime    @default(now())
+  draft     LetterDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+}
+
+model RiseSession {
+  id        String   @id @default(cuid())
+  userId    String
+  role      String
+  focus     String
+  questions Json
+  notes     Json?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ResumeFeedback {
+  id        String      @id @default(cuid())
+  draftId   String
+  section   String
+  message   String
+  createdAt DateTime    @default(now())
+  draft     ResumeDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+}
+
+model AiCache {
+  id        String    @id @default(cuid())
+  cacheKey  String    @unique
+  response  Json
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?
+  access_token       String?
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?
+  session_state      String?
+  oauth_token_secret String?
+  oauth_token        String?
+  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 enum AssessmentMode {
@@ -45,198 +237,4 @@ enum AnalyticsEventType {
   CREDITS_PURCHASED
   MODULE_VIEWED
   CHAT_MESSAGE
-}
-
-model User {
-  id                String              @id @default(cuid())
-  email             String              @unique
-  name              String?
-  hashedPassword    String?
-  image             String?
-  subscriptionPlan  SubscriptionPlan?   @default(ESSENTIAL)
-  subscriptionStatus SubscriptionStatus @default(INACTIVE)
-  stripeCustomerId  String?
-  stripeSubscriptionId String?
-  currentPeriodStart DateTime?
-  currentPeriodEnd  DateTime?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  assessments       Assessment[]
-  careerMatches     CareerMatch[]
-  conversations     Conversation[]
-  notifications     Notification[]
-  analyticsEvents   AnalyticsEvent[]
-  resumeDrafts      ResumeDraft[]
-  letterDrafts      LetterDraft[]
-  riseSessions      RiseSession[]
-  accounts          Account[]
-  sessions          Session[]
-}
-
-model Assessment {
-  id             String           @id @default(cuid())
-  userId         String
-  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mode           AssessmentMode
-  status         AssessmentStatus @default(DRAFT)
-  responses      Json
-  results        Json?
-  completionDate DateTime?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  careerMatches  CareerMatch[]
-}
-
-model CareerMatch {
-  id                 String      @id @default(cuid())
-  userId             String
-  assessmentId       String?
-  user               User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  assessment         Assessment? @relation(fields: [assessmentId], references: [id], onDelete: SetNull)
-  careerTitle        String
-  compatibilityScore Float
-  sector             String?
-  description        String?
-  requiredSkills     String[]
-  salaryRange        String?
-  details            Json?
-  createdAt          DateTime    @default(now())
-}
-
-model Conversation {
-  id        String              @id @default(cuid())
-  userId    String
-  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  channel   ConversationChannel @default(LUNA)
-  title     String?
-  messages  Json
-  context   Json?
-  createdAt DateTime            @default(now())
-  updatedAt DateTime            @updatedAt
-}
-
-model Notification {
-  id        String    @id @default(cuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subject   String
-  body      String
-  channel   String
-  sentAt    DateTime?
-  createdAt DateTime  @default(now())
-}
-
-model AnalyticsEvent {
-  id        String             @id @default(cuid())
-  userId    String?
-  user      User?              @relation(fields: [userId], references: [id])
-  type      AnalyticsEventType
-  metadata  Json?
-  createdAt DateTime           @default(now())
-}
-
-model ResumeDraft {
-  id          String                  @id @default(cuid())
-  userId      String
-  user        User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title       String?
-  template    String
-  tone        String?
-  language    String?
-  version     Int                     @default(1)
-  content     Json
-  context     Json?
-  alignScore  Float?
-  createdAt   DateTime                @default(now())
-  updatedAt   DateTime                @updatedAt
-  feedback    ResumeFeedback[]
-}
-
-model LetterDraft {
-  id         String        @id @default(cuid())
-  userId     String
-  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title      String?
-  template   String?
-  tone       String?
-  language   String?
-  content    Json
-  alignScore Float?
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
-  feedback   LetterFeedback[]
-}
-
-model LetterFeedback {
-  id        String       @id @default(cuid())
-  draftId   String
-  draft     LetterDraft  @relation(fields: [draftId], references: [id], onDelete: Cascade)
-  section   String
-  message   String
-  createdAt DateTime     @default(now())
-}
-
-model RiseSession {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role      String
-  focus     String
-  questions Json
-  notes     Json?
-  createdAt DateTime @default(now())
-}
-
-model ResumeFeedback {
-  id        String       @id @default(cuid())
-  draftId   String
-  draft     ResumeDraft  @relation(fields: [draftId], references: [id], onDelete: Cascade)
-  section   String
-  message   String
-  createdAt DateTime     @default(now())
-}
-
-model AiCache {
-  id        String    @id @default(cuid())
-  cacheKey  String    @unique
-  response  Json
-  expiresAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-}
-
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-}
-
-model Account {
-  id                 String  @id @default(cuid())
-  userId             String
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String? @db.Text
-  access_token       String? @db.Text
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String? @db.Text
-  session_state      String?
-  oauth_token_secret String?
-  oauth_token        String?
-  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-}
-
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

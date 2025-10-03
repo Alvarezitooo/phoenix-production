@@ -6,13 +6,8 @@ import { getCachedResponse, hashCacheKey, setCachedResponse } from '@/lib/cache'
 const openAiKey = process.env.OPENAI_API_KEY;
 const geminiKey = process.env.GOOGLE_GENERATIVE_API_KEY;
 
-const openai = openAiKey
-  ? new OpenAI({ apiKey: openAiKey })
-  : null;
-
-const gemini = geminiKey
-  ? new GoogleGenerativeAI(geminiKey)
-  : null;
+const openai = openAiKey ? new OpenAI({ apiKey: openAiKey }) : null;
+const gemini = geminiKey ? new GoogleGenerativeAI(geminiKey) : null;
 
 type Provider = 'openai' | 'gemini';
 
@@ -146,8 +141,8 @@ async function callProvider(prompt: string, provider: Provider) {
 
 async function callWithFallback(prompt: string) {
   const providers: Provider[] = [];
-  if (openai) providers.push('openai');
   if (gemini) providers.push('gemini');
+  if (openai) providers.push('openai');
 
   if (providers.length === 0) {
     return JSON.stringify({ recommendations: FALLBACK_RECOMMENDATIONS });
