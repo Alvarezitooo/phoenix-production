@@ -12,7 +12,26 @@ const redirectOrCheckout = async (
   isAuthenticated: boolean,
   setLoading: (value: boolean) => void,
 ) => {
+  const logClick = () => {
+    if (!isAuthenticated) return;
+    const source = typeof window !== 'undefined' ? window.location.pathname : 'unknown';
+    void fetch('/api/analytics/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'PLAN_UPGRADE_CLICK',
+        metadata: {
+          plan,
+          source,
+        },
+      }),
+    }).catch(() => {
+      // ignore logging error
+    });
+  };
+
   if (plan === 'DISCOVERY') {
+    logClick();
     if (isAuthenticated) {
       router.push('/dashboard');
     } else {
@@ -28,6 +47,7 @@ const redirectOrCheckout = async (
 
   setLoading(true);
   try {
+    logClick();
     const response = await fetch('/api/stripe/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

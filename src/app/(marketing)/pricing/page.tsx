@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import { PlanCard } from '@/components/pricing/plan-card';
 import type { SubscriptionPlan } from '@prisma/client';
+import { PricingAnalyticsTracker } from '@/components/analytics/pricing-tracker';
 
 export const metadata: Metadata = {
   title: 'Plans & Tarifs | Phoenix',
@@ -14,6 +15,7 @@ export default function PricingPage() {
 
   return (
     <div className="space-y-12">
+      <PricingAnalyticsTracker />
       <section className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-lg">
         <div className="space-y-3">
           <p className="text-xs uppercase tracking-wide text-emerald-200">Plans mensuels</p>

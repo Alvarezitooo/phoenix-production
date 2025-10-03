@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
 import { prisma } from '@/lib/prisma';
+import { logAnalyticsEvent } from '@/lib/analytics';
 import type { SubscriptionStatus, SubscriptionPlan } from '@prisma/client';
 
 function resolveSubscriptionStatus(status: Stripe.Subscription.Status): SubscriptionStatus {
@@ -81,6 +82,15 @@ export async function POST(request: Request) {
             currentPeriodEnd: currentPeriodEndUnix ? new Date(currentPeriodEndUnix * 1000) : null,
           },
         });
+
+        logAnalyticsEvent({
+          userId,
+          type: 'PLAN_CONVERTED',
+          metadata: {
+            plan: resolvePlan(plan),
+            source: 'checkout.session.completed',
+          },
+        }).catch((error) => console.error('[STRIPE_PLAN_CONVERTED]', error));
       }
     }
 

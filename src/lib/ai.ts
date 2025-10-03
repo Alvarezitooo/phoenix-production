@@ -11,6 +11,8 @@ const gemini = geminiKey ? new GoogleGenerativeAI(geminiKey) : null;
 
 type Provider = 'openai' | 'gemini';
 
+const PROMPT_VERSION = 'aube_reco_fr_v2';
+
 export type CareerRecommendation = {
   careerTitle: string;
   compatibilityScore: number;
@@ -54,6 +56,98 @@ const RIASEC_SECTOR_MAP: Record<string, { sectors: string[]; keywords: string[] 
     keywords: ['contrôleur de gestion', 'responsable administratif', 'gestionnaire paie'],
   },
 };
+
+const BIG_FIVE_DESCRIPTORS: Record<string, { label: string; high: string; low: string }> = {
+  openness: {
+    label: 'Ouverture',
+    high: 'curiosité intellectuelle, appétence pour la nouveauté',
+    low: 'préférence pour des environnements structurés et éprouvés',
+  },
+  conscientiousness: {
+    label: 'Rigueur',
+    high: 'organisation, sens du détail, fiabilité sur les livrables',
+    low: 'approche plus intuitive, besoin d’un cadre souple',
+  },
+  extraversion: {
+    label: 'Extraversion',
+    high: 'goût du collectif, énergie en interaction',
+    low: 'préférence pour des environnements calmes et analytiques',
+  },
+  agreeableness: {
+    label: 'Coopération',
+    high: 'écoute, recherche du consensus, sens du service',
+    low: 'assertivité, franchise, capacité à challenger',
+  },
+  neuroticism: {
+    label: 'Stabilité émotionnelle',
+    high: 'gestion sereine des imprévus, bonne mise à distance',
+    low: 'sensibilité élevée, vigilance aux environnements stressants',
+  },
+};
+
+const RIASEC_LABELS_FR: Record<string, string> = {
+  realistic: 'Réaliste',
+  investigative: 'Investigateur',
+  artistic: 'Artistique',
+  social: 'Social',
+  enterprising: 'Entreprenant',
+  conventional: 'Conventionnel',
+};
+
+function describeBigFiveScores(scores: Record<string, number>): string | null {
+  const entries = Object.entries(scores ?? {});
+  if (entries.length === 0) return null;
+  const sorted = entries.sort((a, b) => b[1] - a[1]);
+  const top = sorted.slice(0, 2);
+  const statements = top.map(([key, value]) => {
+    const descriptor = BIG_FIVE_DESCRIPTORS[key];
+    if (!descriptor) {
+      return `${key} (${value}/5)`;
+    }
+    const quality = value >= 4 ? descriptor.high : value <= 2 ? descriptor.low : 'profil équilibré sur ce trait';
+    return `${descriptor.label} (${value}/5) — ${quality}`;
+  });
+  return statements.join('; ');
+}
+
+function describeRiasecScores(scores: Record<string, number>): string | null {
+  const entries = Object.entries(scores ?? {});
+  if (entries.length === 0) return null;
+  const sorted = entries.sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const statements = sorted.map(([key, value]) => {
+    const label = RIASEC_LABELS_FR[key] ?? key;
+    const mapping = RIASEC_SECTOR_MAP[key] ?? null;
+    const sectors = mapping ? mapping.sectors.slice(0, 2).join(', ') : undefined;
+    return sectors ? `${label} (${value}/5) — secteurs à privilégier : ${sectors}` : `${label} (${value}/5)`;
+  });
+  return statements.join(' | ');
+}
+
+function buildProfileNarrative(payload: AssessmentPayload, bigFive?: string | null, riasec?: string | null) {
+  const segments: string[] = [];
+  if (bigFive) {
+    segments.push(`Traits dominants : ${bigFive}.`);
+  }
+  if (riasec) {
+    segments.push(`Univers RIASEC prioritaires : ${riasec}.`);
+  }
+  if (payload.workPreferences?.length) {
+    segments.push(`Préférences de travail : ${payload.workPreferences.join(', ')}.`);
+  }
+  if (payload.strengths?.length) {
+    segments.push(`Forces déjà mobilisées : ${payload.strengths.join(', ')}.`);
+  }
+  if (payload.growthAreas?.length) {
+    segments.push(`Axes de progression visés : ${payload.growthAreas.join(', ')}.`);
+  }
+  if (payload.interests?.length) {
+    segments.push(`Centres d’intérêt métiers : ${payload.interests.join(', ')}.`);
+  }
+  if (payload.narrative) {
+    segments.push(`Ambition exprimée : ${payload.narrative}.`);
+  }
+  return segments.join(' ');
+}
 
 type AssessmentPayload = {
   mode: AssessmentMode;
@@ -220,11 +314,18 @@ async function callWithFallback(prompt: string) {
 }
 
 export async function getCareerRecommendations(payload: AssessmentPayload) {
-  const cacheKey = hashCacheKey({ type: 'career_recommendations', payload });
+  const cacheKey = hashCacheKey({ type: 'career_recommendations', payload, version: PROMPT_VERSION });
   const cached = await getCachedResponse<{ recommendations: CareerRecommendation[] }>(cacheKey);
   if (cached) return cached.recommendations;
 
-  const basePrompt = `Données candidat : ${JSON.stringify(payload)}.`;
+  const bigFiveSummary = describeBigFiveScores(payload.bigFive);
+  const riasecSummary = describeRiasecScores(payload.riasec);
+  const profileNarrative = buildProfileNarrative(payload, bigFiveSummary, riasecSummary);
+  const profileContext = [bigFiveSummary, riasecSummary, profileNarrative]
+    .filter(Boolean)
+    .join(' ');
+
+  const basePrompt = profileContext.length > 0 ? profileContext : `Données candidat : ${JSON.stringify(payload)}.`;
   const riasecContext = buildRiasecContext(payload.riasec);
   const extraContext = riasecContext
     ? `Réponds strictement en français et contextualise pour le marché de l’emploi en France. Varie les secteurs proposés en t’appuyant sur : ${riasecContext.sectors.join(
@@ -236,8 +337,8 @@ export async function getCareerRecommendations(payload: AssessmentPayload) {
 
   const prompt =
     payload.mode === 'QUICK'
-      ? `Tu es une stratège de carrière senior. À partir des informations fournies, propose un seul métier prioritaire pour un diagnostic express. Retourne un JSON avec la clé "recommendations" contenant exactement UN objet avec : careerTitle, compatibilityScore (0-100), sector, description (3 phrases maximum), requiredSkills (3 compétences clés maximum), salaryRange (texte), quickWins (tableau de 2 actions concrètes). ${basePrompt} ${extraContext}`
-      : `Tu es une stratège de carrière senior. À partir du profil détaillé, propose trois métiers complémentaires permettant une mobilité durable. Retourne un JSON avec la clé "recommendations" contenant exactement TROIS objets avec : careerTitle, compatibilityScore (0-100), sector, description (4 phrases maximum), requiredSkills (5 compétences précises), salaryRange (texte), developmentFocus (tableau de 2 à 3 thèmes d’upskilling). ${basePrompt} ${extraContext}`;
+      ? `Tu es une stratège de carrière senior. À partir des éléments suivants, propose un seul métier prioritaire pour un diagnostic express : ${basePrompt} Retourne un JSON avec la clé "recommendations" contenant exactement UN objet comprenant : careerTitle, compatibilityScore (0-100), sector, description (3 phrases maximum), requiredSkills (3 compétences clés maximum), salaryRange (texte en euros ou fourchette cohérente), quickWins (tableau de 2 actions concrètes). ${extraContext}`
+      : `Tu es une stratège de carrière senior. À partir du profil décrit ci-dessous, propose trois métiers complémentaires permettant une mobilité durable : ${basePrompt} Retourne un JSON avec la clé "recommendations" contenant exactement TROIS objets comprenant : careerTitle, compatibilityScore (0-100), sector, description (4 phrases maximum), requiredSkills (5 compétences précises), salaryRange (texte en euros ou fourchette cohérente), developmentFocus (tableau de 2 à 3 thèmes d’upskilling contextualisés au métier). ${extraContext}`;
 
   const response = await callWithFallback(prompt);
 

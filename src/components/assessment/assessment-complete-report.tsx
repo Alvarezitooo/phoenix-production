@@ -1,7 +1,11 @@
+"use client";
+
+import { useState } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { CompatibilityBadge } from '@/components/ui/badge';
 import { Recommendation } from '@/components/assessment/assessment-form';
+import { Button } from '@/components/ui/button';
 
 function uniqueValues(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
@@ -18,12 +22,17 @@ function splitSummary(summary?: string | null) {
 type AssessmentCompleteReportProps = {
   summary: string | null;
   recommendations: Recommendation[];
+  assessmentId: string | null;
+  isPro: boolean;
 };
 
-export function AssessmentCompleteReport({ summary, recommendations }: AssessmentCompleteReportProps) {
+export function AssessmentCompleteReport({ summary, recommendations, assessmentId, isPro }: AssessmentCompleteReportProps) {
   const summaryParagraphs = splitSummary(summary);
   const allSkills = uniqueValues(recommendations.flatMap((rec) => rec.requiredSkills ?? []));
   const allFocus = uniqueValues(recommendations.flatMap((rec) => rec.developmentFocus ?? []));
+  const [exportLoading, setExportLoading] = useState<'pdf' | 'markdown' | null>(null);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const quickActions = [
     {
@@ -42,6 +51,58 @@ export function AssessmentCompleteReport({ summary, recommendations }: Assessmen
       href: '/luna',
     },
   ];
+
+  async function handleExport(format: 'pdf' | 'markdown') {
+    if (!assessmentId) {
+      setExportError('Rapport indisponible. Relancez une analyse complète.');
+      return;
+    }
+    setExportLoading(format);
+    setExportError(null);
+    setExportMessage(null);
+    try {
+      const response = await fetch(`/api/assessments/${assessmentId}/export/${format}`);
+      if (!response.ok) {
+        let message = 'Impossible d’exporter le rapport.';
+        try {
+          const data = await response.json();
+          if (data?.message) message = data.message;
+        } catch {
+          // ignore parse
+        }
+        throw new Error(message);
+      }
+
+      if (format === 'markdown') {
+        const markdown = await response.text();
+        const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'rapport-aube.md';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+        setExportMessage('Rapport exporté en Markdown.');
+      } else {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'rapport-aube.pdf';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+        setExportMessage('Rapport exporté en PDF.');
+      }
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : 'Erreur inattendue lors de l’export.');
+    } finally {
+      setExportLoading(null);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -110,6 +171,58 @@ export function AssessmentCompleteReport({ summary, recommendations }: Assessmen
           ))}
         </CardContent>
       </Card>
+
+      {isPro ? (
+        <Card className="border-white/10 bg-white/5">
+          <CardHeader>
+            <CardTitle>Exporter le rapport</CardTitle>
+            <CardDescription>Partagez vos résultats Aube avec vos parties prenantes.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap gap-3">
+              <Button
+                variant="secondary"
+                disabled={exportLoading !== null}
+                loading={exportLoading === 'pdf'}
+                onClick={() => handleExport('pdf')}
+              >
+                Export PDF
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={exportLoading !== null}
+                loading={exportLoading === 'markdown'}
+                onClick={() => handleExport('markdown')}
+              >
+                Export Markdown / Notion
+              </Button>
+            </div>
+            {exportMessage && <p className="text-xs text-emerald-200">{exportMessage}</p>}
+            {exportError && <p className="text-xs text-rose-300">{exportError}</p>}
+            {!assessmentId && (
+              <p className="text-xs text-white/50">Relancez une analyse complète pour générer un rapport exportable.</p>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border-white/10 bg-white/5">
+          <CardHeader>
+            <CardTitle>Exporter le rapport</CardTitle>
+            <CardDescription>Réservé au plan Pro avec rapport complet illimité.</CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm text-white/60">
+            Passez au plan Pro pour télécharger le rapport Aube au format PDF/Markdown et l’intégrer directement dans vos outils (Notion, ATS).
+            <div className="mt-4">
+              <Link
+                href="/pricing"
+                className="inline-flex items-center justify-center rounded-full border border-white/20 bg-transparent px-4 py-2 text-xs font-semibold text-white/80 transition hover:bg-white/10 hover:text-white"
+              >
+                Découvrir le plan Pro
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="border-white/10 bg-white/5">
         <CardHeader>

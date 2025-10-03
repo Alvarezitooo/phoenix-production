@@ -12,6 +12,8 @@ import { CompatibilityBadge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { AssessmentCompleteReport } from '@/components/assessment/assessment-complete-report';
 import { ArrowRight, Lightbulb, ShieldCheck, Zap } from 'lucide-react';
+import type { SubscriptionPlan } from '@prisma/client';
+import { useSession } from 'next-auth/react';
 
 const ASSESSMENT_MODES = {
   QUICK: 'QUICK',
@@ -220,6 +222,10 @@ export function AssessmentForm() {
   const [summary, setSummary] = useState<string | null>(null);
   const [expressSelections, setExpressSelections] = useState<string[]>([]);
   const [expressError, setExpressError] = useState<string | null>(null);
+  const [completedAssessmentId, setCompletedAssessmentId] = useState<string | null>(null);
+  const { data: session } = useSession();
+  const userPlan = (session?.user?.subscriptionPlan as SubscriptionPlan | undefined) ?? 'DISCOVERY';
+  const isPro = userPlan === 'PRO';
   const {
     control,
     getValues,
@@ -370,9 +376,14 @@ export function AssessmentForm() {
         throw new Error(error.message ?? 'Impossible de compléter l\'analyse');
       }
 
-      const data = (await response.json()) as { recommendations: Recommendation[]; summary: string };
+      const data = (await response.json()) as {
+        recommendations: Recommendation[];
+        summary: string;
+        assessmentId: string;
+      };
       setResults(data.recommendations);
       setSummary(data.summary);
+      setCompletedAssessmentId(data.assessmentId);
     } catch (error) {
       console.error(error);
       const message = error instanceof Error ? error.message : 'Une erreur est survenue';
@@ -396,6 +407,7 @@ export function AssessmentForm() {
     setValue('growthAreas', []);
     setValue('interests', []);
     setValue('narrative', '');
+    setCompletedAssessmentId(null);
   }
 
   function startCompleteFlow() {
@@ -412,6 +424,7 @@ export function AssessmentForm() {
     setValue('growthAreas', []);
     setValue('interests', []);
     setValue('narrative', '');
+    setCompletedAssessmentId(null);
   }
 
   function startExpressFlow() {
@@ -428,6 +441,7 @@ export function AssessmentForm() {
     setValue('growthAreas', []);
     setValue('interests', []);
     setValue('narrative', '');
+    setCompletedAssessmentId(null);
   }
 
   function handleExpressToggle(id: string) {
@@ -545,7 +559,12 @@ export function AssessmentForm() {
           </Card>
         ) : (
           <div className="space-y-6">
-            <AssessmentCompleteReport summary={summary} recommendations={results} />
+            <AssessmentCompleteReport
+              summary={summary}
+              recommendations={results}
+              assessmentId={completedAssessmentId}
+              isPro={isPro}
+            />
             <div className="flex items-center justify-end">
               <Button variant="ghost" onClick={resetFlow}>
                 Relancer une analyse
