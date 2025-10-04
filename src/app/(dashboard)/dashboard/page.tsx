@@ -273,6 +273,26 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-8">
+      <div className="rounded-3xl border border-emerald-400/40 bg-emerald-500/10 p-4 text-sm text-emerald-200">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <span className="text-xs uppercase tracking-wide text-emerald-200/80">Programme bêta</span>
+            <p className="mt-1 text-sm text-emerald-100">
+              Partagez votre expérience et aidez-nous à présenter Phoenix à Provence Angels et TVT Innovation.
+            </p>
+          </div>
+          <Link
+            href="https://docs.google.com/forms/d/e/1FAIpQLSdXQ2Myp_CKGQzGIa0l5vi2zTCmEeWrdvIjEugmm2n16OogsA/viewform?usp=header"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-400 to-green-500 px-4 py-2 text-xs font-semibold text-slate-950 shadow-lg shadow-emerald-500/20 transition hover:scale-[1.02] hover:shadow-xl"
+          >
+            Ouvrir le questionnaire
+            <ArrowUpRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+      </div>
+
       {errors.length > 0 && (
         <div className="rounded-3xl border border-amber-400/50 bg-amber-500/10 p-4 text-sm text-amber-100">
           Certaines données n’ont pas pu être chargées ({errors.join(', ')}). Tout le reste reste disponible.

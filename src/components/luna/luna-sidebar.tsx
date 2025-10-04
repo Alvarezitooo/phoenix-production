@@ -6,6 +6,7 @@ import { Bot, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
+import { FeedbackWidget } from '@/components/feedback/feedback-widget';
 
 const fetchConversations = async () => {
   const response = await fetch('/api/conversations');
@@ -119,7 +120,7 @@ export function LunaSidebar() {
             ))
           )}
         </div>
-        <div className="border-t border-white/10 p-5">
+        <div className="border-t border-white/10 p-5 space-y-4">
           <form
             className="space-y-3"
             onSubmit={(event) => {
@@ -144,6 +145,12 @@ export function LunaSidebar() {
               </Button>
             </div>
           </form>
+          <FeedbackWidget
+            module="LUNA"
+            context={{ conversationId: conversation?.id ?? null, messageCount: messages.length }}
+            ctaLabel="Retour sur Luna"
+            compact
+          />
         </div>
       </div>
     </>

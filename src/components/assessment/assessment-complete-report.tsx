@@ -7,6 +7,7 @@ import { CompatibilityBadge } from '@/components/ui/badge';
 import { Recommendation } from '@/components/assessment/assessment-form';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2 } from 'lucide-react';
+import { FeedbackWidget } from '@/components/feedback/feedback-widget';
 
 function uniqueValues(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
@@ -335,6 +336,8 @@ export function AssessmentCompleteReport({
           ))}
         </CardContent>
       </Card>
+
+      <FeedbackWidget module="AUBE_COMPLETE" ctaLabel="Partager un retour" />
     </div>
   );
 }

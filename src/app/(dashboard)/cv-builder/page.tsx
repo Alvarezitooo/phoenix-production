@@ -1,5 +1,6 @@
 import { CvBuilder } from '@/components/cv/cv-builder';
 import { Card, CardContent } from '@/components/ui/card';
+import { FeedbackWidget } from '@/components/feedback/feedback-widget';
 import { PenTool, Wand2 } from 'lucide-react';
 
 export default function CvBuilderPage() {
@@ -29,6 +30,8 @@ export default function CvBuilderPage() {
           <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-white/50">Export PDF bientôt disponible</span>
         </CardContent>
       </Card>
+
+      <FeedbackWidget module="CV_BUILDER" ctaLabel="Donner mon avis" />
     </div>
   );
 }
