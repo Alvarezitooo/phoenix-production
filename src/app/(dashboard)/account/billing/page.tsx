@@ -7,6 +7,7 @@ import { PLAN_CONFIG } from '@/lib/subscription';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 import { ManageBillingButton } from '@/components/billing/manage-billing-button';
+import { BetaCouponForm } from '@/components/billing/beta-coupon-form';
 
 function formatDate(date: Date | null | undefined) {
   if (!date) return null;
@@ -135,9 +136,9 @@ export default async function BillingPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-white/10 bg-white/5">
-          <CardHeader>
-            <CardTitle>Avantages inclus</CardTitle>
+      <Card className="border-white/10 bg-white/5">
+        <CardHeader>
+          <CardTitle>Avantages inclus</CardTitle>
             <CardDescription>
               Chaque plan donne accès à un ensemble d’outils IA et de modules d’accompagnement.
             </CardDescription>
@@ -187,6 +188,21 @@ export default async function BillingPage() {
           >
             Écrire au support
           </Link>
+        </CardContent>
+      </Card>
+
+      <Card className="border-white/10 bg-white/5">
+        <CardHeader>
+          <CardTitle>Accès bêta Phoenix</CardTitle>
+          <CardDescription>
+            Vous avez reçu un code testeur&nbsp;? Activez-le pour débloquer temporairement les modules premium.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm text-white/70">
+          <BetaCouponForm />
+          <p className="text-xs text-white/50">
+            Les accès bêta expirent automatiquement à la date indiquée. Vous pourrez ensuite revenir sur le plan Découverte sans perdre vos données.
+          </p>
         </CardContent>
       </Card>
     </div>
