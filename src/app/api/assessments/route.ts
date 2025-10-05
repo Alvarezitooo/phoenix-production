@@ -24,6 +24,11 @@ const sharedResponsesSchema = z.object({
   growthAreas: z.array(z.string()).optional().default([]),
   interests: z.array(z.string()).optional().default([]),
   narrative: z.string().optional(),
+  keyMoments: z.string().optional(),
+  roleVision: z.string().optional(),
+  nonNegotiables: z.string().optional(),
+  energyBoosters: z.string().optional(),
+  energyDrainers: z.string().optional(),
 });
 
 const quickAssessmentSchema = z.object({
@@ -37,6 +42,8 @@ const completeAssessmentSchema = z.object({
     growthAreas: z.array(z.string()).min(1),
     interests: z.array(z.string()).min(1),
     narrative: z.string().min(80, 'Décrivez votre ambition pour enrichir le rapport complet'),
+    keyMoments: z.string().min(80, 'Décrivez au moins une expérience significative'),
+    roleVision: z.string().min(60, 'Précisez votre trajectoire cible'),
   }),
 });
 
@@ -109,6 +116,11 @@ export async function POST(request: Request) {
       growthAreas: parsed.responses.growthAreas,
       interests: parsed.responses.interests,
       narrative: parsed.responses.narrative,
+      keyMoments: parsed.responses.keyMoments,
+      roleVision: parsed.responses.roleVision,
+      nonNegotiables: parsed.responses.nonNegotiables,
+      energyBoosters: parsed.responses.energyBoosters,
+      energyDrainers: parsed.responses.energyDrainers,
     };
 
     try {

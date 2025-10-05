@@ -49,13 +49,13 @@ export default function HomePage() {
       <section className="grid gap-12 lg:grid-cols-2 lg:items-center">
         <div className="space-y-8">
           <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-200">
-            Plateforme carrière augmentée
+            Phoenix × Luna · coach IA + parcours structurés
           </span>
           <h1 className="text-4xl font-semibold tracking-tight text-white md:text-5xl">
-            Découvrez, construisez et déployez votre prochaine étape professionnelle avec Phoenix.
+            Faites équipe avec Luna pour piloter votre transition professionnelle.
           </h1>
           <p className="max-w-xl text-lg text-white/70">
-            Phoenix combine des évaluations psychométriques avancées, un moteur d&apos;IA contextuel et des plans d’abonnement transparents pour accompagner chaque talent du diagnostic à l&apos;entretien.
+            Luna analyse vos diagnostics Aube, modélise vos trajectoires et vous accompagne sur chaque livrable (CV, lettres, préparation d’entretien) au sein des modules Phoenix.
           </p>
           <div className="flex flex-wrap gap-4">
             <Link
@@ -66,13 +66,22 @@ export default function HomePage() {
               <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
             </Link>
             <Link
+              href="/luna"
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-300/40 bg-white/5 px-5 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-400/10 hover:text-emerald-50"
+            >
+              Découvrir Luna
+            </Link>
+            <Link
               href="/pricing"
               className="inline-flex items-center justify-center gap-2 rounded-full border border-white/20 bg-white/10 px-5 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
             >
               Voir les offres
             </Link>
           </div>
-          <p className="text-xs text-white/50">Accès Découverte offert : 1 analyse express, un CV d’essai et 3 échanges avec Luna.</p>
+          <div className="space-y-2 text-xs text-white/60">
+            <p>Accès Découverte offert : 1 analyse express, un CV d’essai et 3 échanges avec Luna.</p>
+            <p className="text-white/50">Programme bêta : vos retours sont collectés en continu pour enrichir Luna (avis publics à venir).</p>
+          </div>
           <dl className="grid gap-6 sm:grid-cols-3">
             {[
               { label: 'Compatibilité carrière', value: '3 recommandations en temps réel' },
@@ -115,6 +124,32 @@ export default function HomePage() {
             </div>
           </div>
         </div>
+      </section>
+
+      <section className="grid gap-4 rounded-3xl border border-white/10 bg-white/5 p-8 md:grid-cols-3">
+        {[
+          {
+            title: 'Analyse guidée',
+            description: 'Luna exploite votre diagnostic Aube pour identifier immédiatement vos écarts de compétences et lancer la discussion.',
+          },
+          {
+            title: 'Coaching continu',
+            description: 'Posez vos questions, Luna reformule vos réussites, prépare vos réponses d’entretien et suit votre énergie.',
+          },
+          {
+            title: 'Livrables assistés',
+            description: 'CV, lettres, sessions Rise : chaque module propose des suggestions Luna adaptées au rôle que vous ciblez.',
+          },
+        ].map((item) => (
+          <div key={item.title} className="flex h-full flex-col justify-between rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-5 text-sm text-emerald-100">
+            <div>
+              <span className="text-xs uppercase tracking-wide text-emerald-200/80">Luna vous accompagne</span>
+              <h3 className="mt-2 text-lg font-semibold text-white">{item.title}</h3>
+              <p className="mt-2 text-emerald-100/90">{item.description}</p>
+            </div>
+            <div className="mt-4 text-xs text-emerald-200/70">Toujours contextualisé : vos réponses Aube, vos choix CV, vos drafts Rise.</div>
+          </div>
+        ))}
       </section>
 
       <section className="rounded-3xl border border-white/10 bg-white/5 p-8">
@@ -182,7 +217,10 @@ export default function HomePage() {
             <Link key={module.title} href={module.href} className="group">
               <Card className="relative h-full overflow-hidden">
                 <div className={`absolute -right-10 -top-10 h-40 w-40 rounded-full bg-gradient-to-br ${module.accent} blur-3xl transition group-hover:scale-110`} />
-                <CardHeader className="relative">
+                <CardHeader className="relative space-y-3">
+                  <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-emerald-200/80">
+                    <span className="h-2 w-2 rounded-full bg-emerald-300" /> Assisté par Luna
+                  </span>
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle>{module.title}</CardTitle>
@@ -201,6 +239,26 @@ export default function HomePage() {
               </Card>
             </Link>
           ))}
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-white/70">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <span className="text-xs uppercase tracking-wide text-emerald-200">Programme bêta</span>
+            <h3 className="mt-2 text-lg font-semibold text-white">Vos retours guident Luna</h3>
+            <p className="mt-2 max-w-2xl text-white/70">
+              Les fonctionnalités Luna sont co-construites avec nos beta-testeurs. Partagez votre expérience pour influencer les prochaines itérations (rapports plus riches, assistance CV renforcée, coaching Rise ciblé).
+            </p>
+          </div>
+          <Link
+            href="https://docs.google.com/forms/d/e/1FAIpQLSdXQ2Myp_CKGQzGIa0l5vi2zTCmEeWrdvIjEugmm2n16OogsA/viewform?usp=header"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-300/40 bg-emerald-500/10 px-5 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-400/10 hover:text-emerald-50"
+          >
+            Contribuer au programme bêta
+          </Link>
         </div>
       </section>
     </div>

@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useFieldArray, useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -24,6 +23,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/utils/cn';
 import { useToast } from '@/components/ui/toast';
+import { LunaAssistHint } from '@/components/luna/luna-assist-hint';
+import { logLunaInteraction } from '@/utils/luna-analytics';
 
 const contextSchema = z.object({
   resume: z
@@ -111,7 +112,6 @@ const languageOptions = [
 ] as const;
 
 export function LetterGenerator() {
-  const router = useRouter();
   const { showToast } = useToast();
   const [context, setContext] = useState<LettersContext | null>(null);
   const [contextError, setContextError] = useState<string | null>(null);
@@ -212,6 +212,27 @@ export function LetterGenerator() {
   const watchTone = form.watch('tone');
   const watchHighlights = form.watch('highlights');
   const watchResumeSummary = form.watch('resumeSummary');
+
+  const openLunaForLetter = useCallback(() => {
+    const values = form.getValues();
+    const highlights = (values.highlights ?? []).filter((item) => item && item.trim().length > 0).join(' | ');
+    const prompt = `Tu es Luna, copywriter carrière. Poste: ${values.jobTitle || 'à préciser'} chez ${
+      values.company || 'entreprise à préciser'
+    } (ton ${values.tone}). Résumé: ${values.resumeSummary || 'non renseigné'}. Highlights: ${
+      highlights || 'non renseignés'
+    }. Propose 3 angles d'ouverture et 3 arguments clés pour personnaliser ma lettre.`;
+    window.dispatchEvent(new CustomEvent('phoenix:luna-open', { detail: { prompt, source: 'letters_builder' } }));
+    showToast({
+      title: 'Luna se prépare',
+      description: 'La conversation reprend avec votre contexte lettre.',
+      variant: 'info',
+    });
+    logLunaInteraction('letter_brief_luna', {
+      hasHighlights: Boolean(highlights),
+      jobTitle: values.jobTitle,
+      company: values.company,
+    });
+  }, [form, showToast]);
 
   const steps: StepDefinition[] = [
     {
@@ -484,6 +505,16 @@ export function LetterGenerator() {
               </div>
             </div>
 
+            <LunaAssistHint
+              helper="Luna peut t’aider à clarifier le rôle ciblé ou à identifier 2 attentes clés de l’entreprise."
+              getPrompt={() =>
+                `Tu es Luna, coach carrière. Poste : ${
+                  form.getValues('jobTitle') || 'non précisé'
+                } chez ${form.getValues('company') || 'entreprise à préciser'}. Donne-moi deux attentes probables du recruteur et une question à poser.`
+              }
+              source="letters_brief"
+            />
+
             <div className="space-y-2">
               <label className="text-xs font-semibold uppercase tracking-wide text-white/60">Contact (facultatif)</label>
               <Input placeholder="Ex : Madame Dupont — VP Marketing" {...form.register('hiringManager')} />
@@ -493,6 +524,15 @@ export function LetterGenerator() {
       case 'positioning':
         return (
           <div className="space-y-5">
+            <LunaAssistHint
+              helper="Besoin d’inspiration sur le ton ? Luna suggère des angles adaptés au poste."
+              getPrompt={() =>
+                `Tu es Luna, copywriter. Poste: ${form.getValues('jobTitle') || 'à préciser'} chez ${
+                  form.getValues('company') || 'entreprise à préciser'
+                }. Quel ton adopter et quelles accroches culturelles proposer ? Donne deux recommandations.`
+              }
+              source="letters_positioning"
+            />
             <div className="space-y-2">
               <label className="text-xs font-semibold uppercase tracking-wide text-white/60">Langue</label>
               <div className="grid gap-2 sm:grid-cols-2">
@@ -577,6 +617,15 @@ export function LetterGenerator() {
       case 'arguments':
         return (
           <div className="space-y-4">
+            <LunaAssistHint
+              helper="Demande à Luna de transformer une preuve en argument percutant."
+              getPrompt={() =>
+                `Tu es Luna. Aide-moi à transformer ces highlights en arguments convaincants pour ma lettre : ${
+                  (form.getValues('highlights') ?? []).filter(Boolean).join(' | ') || 'aucun highlight saisi'
+                }. Propose 3 reformulations centrées sur l’impact.`
+              }
+              source="letters_arguments"
+            />
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold uppercase tracking-wide text-white/60">Highlights</label>
               <Button type="button" variant="ghost" className="text-xs" onClick={() => highlightsArray.append('')}>
@@ -610,6 +659,15 @@ export function LetterGenerator() {
         return (
           <div className="space-y-3">
             <label className="text-xs font-semibold uppercase tracking-wide text-white/60">Résumé CV Phoenix</label>
+            <LunaAssistHint
+              helper="Luna peut extraire 3 bullets clés de votre résumé." 
+              getPrompt={() =>
+                `Tu es Luna. Résumé de mon CV : ${
+                  form.getValues('resumeSummary') || 'Pas encore de résumé'
+                }. Génère 3 bullets percutants pour alimenter ma lettre de motivation.`
+              }
+              source="letters_synthesis"
+            />
             <Textarea
               rows={5}
               placeholder="Résumez vos forces, secteurs clés, preuves chiffrées."
@@ -634,9 +692,14 @@ export function LetterGenerator() {
           <h2 className="text-3xl font-semibold text-white">Letters — Studio de motivation</h2>
           <p className="text-sm text-white/60">Préparez des lettres alignées sur vos trajectoires et votre CV Phoenix.</p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-white/50">
-          <Sparkles className="h-4 w-4 text-emerald-300" />
-          IA contextualisée • Historique versionné • Exports PDF
+        <div className="flex flex-wrap items-center gap-2 text-xs text-white/50">
+          <span className="inline-flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-emerald-300" />
+            IA contextualisée • Historique versionné • Exports PDF
+          </span>
+          <Button type="button" variant="ghost" className="text-xs" onClick={openLunaForLetter}>
+            Briefer Luna
+          </Button>
         </div>
       </div>
 
@@ -688,9 +751,14 @@ export function LetterGenerator() {
 
         <div className="space-y-6">
           <Card className="border-white/10 bg-white/5">
-            <CardHeader>
-              <CardTitle>Configurer la lettre</CardTitle>
-              <CardDescription>Saisissez les éléments prioritaires avant de générer.</CardDescription>
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>Configurer la lettre</CardTitle>
+                <CardDescription>Saisissez les éléments prioritaires avant de générer.</CardDescription>
+              </div>
+              <Button type="button" variant="ghost" className="text-xs" onClick={openLunaForLetter}>
+                <Sparkles className="h-4 w-4" /> Briefer Luna
+              </Button>
             </CardHeader>
             <CardContent>
               <form onSubmit={form.handleSubmit(handleGenerate)} className="space-y-4">
@@ -758,13 +826,18 @@ export function LetterGenerator() {
                     <Button type="button" variant="ghost" onClick={handleExportPDF} disabled={exportLoading}>
                       {exportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Export PDF
                     </Button>
-                    <Button type="button" variant="ghost" onClick={() => router.push('/luna')}>
-                      Envoyer à Luna
+                    <Button type="button" variant="ghost" onClick={openLunaForLetter}>
+                      Débriefer avec Luna
                     </Button>
                   </div>
                 </>
               ) : (
-                <p className="text-sm text-white/50">Remplissez le formulaire pour générer une lettre cohérente avec votre parcours.</p>
+                <div className="flex flex-col items-center gap-3 text-sm text-white/50">
+                  <p>Remplissez le formulaire pour générer une lettre cohérente avec votre parcours.</p>
+                  <Button type="button" variant="ghost" className="text-xs" onClick={openLunaForLetter}>
+                    Briefer Luna
+                  </Button>
+                </div>
               )}
 
               {letterDrafts.length > 0 && (
@@ -781,8 +854,24 @@ export function LetterGenerator() {
                         <Button type="button" variant="secondary" className="text-xs" onClick={() => handleLoadDraft(draft.id)}>
                           Charger ce brouillon
                         </Button>
-                        <Button type="button" variant="ghost" className="text-xs" onClick={() => router.push(`/luna?letterDraft=${draft.id}`)}>
-                          Envoyer à Luna
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="text-xs"
+                          onClick={() => {
+                            const prompt = `Tu es Luna. Relis le brouillon ${draft.title ?? 'sans titre'} (ID ${draft.id}) et propose deux axes d’amélioration.`;
+                            window.dispatchEvent(
+                              new CustomEvent('phoenix:luna-open', { detail: { prompt, source: 'letters_saved_draft' } }),
+                            );
+                            showToast({
+                              title: 'Luna ouvre le brouillon',
+                              description: 'Retrouvez la conversation pour affiner la lettre.',
+                              variant: 'info',
+                            });
+                            logLunaInteraction('letters_saved_draft_luna', { draftId: draft.id });
+                          }}
+                        >
+                          Débriefer avec Luna
                         </Button>
                       </div>
                     </div>

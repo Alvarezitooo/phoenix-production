@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -12,6 +12,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { BadgeCheck, Download, Loader2, Plus, RefreshCw, Sparkles, Trash2 } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import { useToast } from '@/components/ui/toast';
+import { LunaAssistHint } from '@/components/luna/luna-assist-hint';
+import { logLunaInteraction } from '@/utils/luna-analytics';
 
 type ContextResponse = {
   assessment: {
@@ -116,6 +119,7 @@ const languages = [
 
 export function CvBuilder() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [context, setContext] = useState<ContextResponse | null>(null);
   const [contextLoading, setContextLoading] = useState(false);
   const [contextError, setContextError] = useState<string | null>(null);
@@ -258,6 +262,11 @@ export function CvBuilder() {
       if (data.draftId) setDraftId(data.draftId);
       setIsEditingResume(false);
       setStatusMessage('CV généré et sauvegardé. Vérifiez la checklist puis exportez.');
+      showToast({
+        title: 'CV généré',
+        description: 'Ouvrez Luna pour transformer ces éléments en pitch ou plan d’action.',
+        variant: 'success',
+      });
       await refreshContext();
     } catch (error) {
       console.error('[CV_GENERATE]', error);
@@ -295,6 +304,11 @@ export function CvBuilder() {
       link.remove();
       window.URL.revokeObjectURL(url);
       setStatusMessage('Export PDF généré avec succès.');
+      showToast({
+        title: 'Export PDF prêt',
+        description: 'Luna peut t’aider à préparer la relecture ou ton pitch d’entretien.',
+        variant: 'success',
+      });
     } catch (error) {
       console.error('[CV_EXPORT]', error);
       setStatusMessage(error instanceof Error ? error.message : "Une erreur est survenue lors de l'export.");
@@ -392,6 +406,20 @@ export function CvBuilder() {
     router.push(`/luna?resumeDraft=${draftId}`);
   }
 
+  const openLunaForCurrentCV = useCallback(() => {
+    const values = form.getValues();
+    const prompt = `Tu es Luna, coach carrière. Voici les éléments de mon CV en cours : rôle cible ${
+      values.targetRole || 'non précisé'
+    }, résumé : ${values.summary || 'à rédiger'}, compétences : ${values.skills || ''}. Suggère 3 axes pour renforcer l'impact du CV et une question pour préparer mon pitch.`;
+    window.dispatchEvent(new CustomEvent('phoenix:luna-open', { detail: { prompt, source: 'cv_builder' } }));
+    showToast({
+      title: 'Ouverture de Luna',
+      description: 'La conversation reprend avec votre contexte CV.',
+      variant: 'info',
+    });
+    logLunaInteraction('cv_brief_luna', { hasResume: Boolean(values.summary.trim()), targetRole: values.targetRole });
+  }, [form, showToast]);
+
   function handleLaunchRise() {
     const params = new URLSearchParams();
     if (selectedMatch?.title) params.set('focus', selectedMatch.title);
@@ -404,17 +432,22 @@ export function CvBuilder() {
   return (
     <div className="grid gap-6 lg:grid-cols-[1.15fr,0.85fr]">
       <Card className="border-white/10 bg-white/5">
-        <CardHeader>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <CardTitle>Paramètres du CV</CardTitle>
-              <p className="mt-1 text-xs text-white/50">Exploitez vos analyses Phoenix pour un CV cohérent et impactant.</p>
-            </div>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <CardTitle>Paramètres du CV</CardTitle>
+            <p className="mt-1 text-xs text-white/50">Exploitez vos analyses Phoenix pour un CV cohérent et impactant.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="ghost" onClick={openLunaForCurrentCV}>
+              <Sparkles className="h-4 w-4" /> Briefer Luna
+            </Button>
             <Button type="button" variant="ghost" onClick={autofillFromContext} disabled={!context || contextLoading}>
-              <Sparkles className="h-4 w-4" /> Pré-remplir
+              Pré-remplir
             </Button>
           </div>
-        </CardHeader>
+        </div>
+      </CardHeader>
         <CardContent className="space-y-6">
           {contextLoading && (
             <div className="flex items-center gap-2 rounded-3xl border border-white/10 bg-white/5 p-3 text-xs text-white/60">
@@ -478,6 +511,15 @@ export function CvBuilder() {
 
             <div className="space-y-2">
               <label className="text-xs font-semibold uppercase tracking-wider text-white/60">Résumé professionnel</label>
+              <LunaAssistHint
+                helper="Luna peut reformuler ton résumé en 2 variantes axées impact."
+                getPrompt={() =>
+                  `Tu es Luna. Réécris mon résumé professionnel pour un CV ciblé. Texte actuel : ${
+                    form.getValues('summary').trim() || 'Pas encore de résumé, propose deux versions orientées impact et leadership.'
+                  }`
+                }
+                source="cv_summary"
+              />
               <Textarea rows={4} placeholder="Synthétisez vos impacts, secteurs, résultats clés." {...form.register('summary')} />
             </div>
 
@@ -575,6 +617,19 @@ export function CvBuilder() {
                       <Input placeholder="Rôle" {...form.register(`experiences.${index}.role` as const)} />
                       <div className="space-y-2">
                         <label className="text-[11px] font-medium text-white/60">Réalisations</label>
+                        <LunaAssistHint
+                          helper="Demande à Luna de transformer une réalisation en résultat chiffré."
+                          getPrompt={() =>
+                            `Tu es Luna. Voici une réalisation professionnelle : ${
+                              (form.getValues(`experiences.${index}.achievements` as const) ?? [])
+                                .map((item) => item?.trim())
+                                .filter(Boolean)
+                                .join(' | ') ||
+                              'Aucune réalisation saisie'
+                            }. Transforme-la en impact mesurable et propose une reformulation concise.`
+                          }
+                          source="cv_experience"
+                        />
                         {(form.watch(`experiences.${index}.achievements`) ?? []).map((_, achievementIndex) => (
                           <Input
                             key={achievementIndex}

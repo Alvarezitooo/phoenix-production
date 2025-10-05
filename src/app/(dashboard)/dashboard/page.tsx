@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ProgressBar } from '@/components/ui/progress';
 import { CompatibilityBadge } from '@/components/ui/badge';
 import { NextActionCard } from './components/next-action-card';
+import { LunaSuggestionsCard, type LunaSuggestion } from './components/luna-suggestions-card';
 
 const focusLabels: Record<string, string> = {
   behavioral: 'Comportemental',
@@ -234,6 +235,51 @@ export default async function DashboardPage() {
   const latestLetter = letters[0];
   const latestRise = riseSessions[0];
 
+  const lunaSuggestions: LunaSuggestion[] = [];
+  const topMatch = matches[0];
+  if (topMatch) {
+    lunaSuggestions.push({
+      id: `match-${topMatch.id}`,
+      title: `Débriefer ${topMatch.title} avec Luna`,
+      description: 'Identifiez trois premières actions pour tester cette trajectoire.',
+      prompt: `Je viens de terminer une analyse Aube et je souhaite approfondir la trajectoire ${topMatch.title}. Donne-moi trois actions concrètes pour avancer cette semaine, en tenant compte de mes forces et contraintes.`,
+    });
+  }
+
+  if (resumeSummary) {
+    lunaSuggestions.push({
+      id: 'resume-insights',
+      title: 'Transformer votre résumé en pitch',
+      description: 'Luna peut extraire trois points clés pour vos prochains entretiens.',
+      prompt: `Voici le résumé de mon CV : ${resumeSummary}. Aide-moi à construire un pitch de 90 secondes et une question de relance.`,
+    });
+  } else if (latestLetter && lunaSuggestions.length < 2) {
+    lunaSuggestions.push({
+      id: `letter-${latestLetter.id}`,
+      title: 'Relire ma lettre avec Luna',
+      description: 'Obtenez des idées pour renforcer l’alignement culture/impact.',
+      prompt: `J'ai une lettre de motivation en cours. Peux-tu me suggérer deux angles pour renforcer l'alignement culturel avant envoi ?`,
+    });
+  } else if (latestRise && lunaSuggestions.length < 2) {
+    lunaSuggestions.push({
+      id: `rise-${latestRise.id}`,
+      title: 'Préparer une question Rise',
+      description: 'Demandez à Luna une simulation d’entretien ciblée.',
+      prompt: `Prépare une question d'entretien difficile à propos du rôle ${latestRise.role} (focus ${latestRise.focus}) et donne-moi une structure de réponse.`,
+    });
+  }
+
+  if (lunaSuggestions.length === 0) {
+    lunaSuggestions.push({
+      id: 'kickoff',
+      title: 'Par quoi commencer avec Luna ?',
+      description: 'Recevez un plan en trois étapes pour activer Phoenix.',
+      prompt: 'Je découvre Phoenix et je veux savoir comment Luna peut m’aider pas à pas. Propose trois étapes concrètes pour démarrer.',
+    });
+  }
+
+  const limitedSuggestions = lunaSuggestions.slice(0, 2);
+
   const quickActions = [
     {
       title: assessments.length ? 'Revoir mes résultats Aube' : 'Lancer Aube',
@@ -278,7 +324,7 @@ export default async function DashboardPage() {
           <div>
             <span className="text-xs uppercase tracking-wide text-emerald-200/80">Programme bêta</span>
             <p className="mt-1 text-sm text-emerald-100">
-              Partagez votre expérience et aidez-nous à présenter Phoenix à Provence Angels et TVT Innovation.
+              Partagez votre expérience pour nous aider à peaufiner Phoenix avant la version publique.
             </p>
           </div>
           <Link
@@ -298,6 +344,8 @@ export default async function DashboardPage() {
           Certaines données n’ont pas pu être chargées ({errors.join(', ')}). Tout le reste reste disponible.
         </div>
       )}
+
+      {limitedSuggestions.length > 0 && <LunaSuggestionsCard suggestions={limitedSuggestions} />}
 
       <section className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-2">

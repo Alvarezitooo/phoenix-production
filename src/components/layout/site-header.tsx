@@ -1,10 +1,13 @@
+"use client";
+
 import Link from 'next/link';
-import { getAuthSession } from '@/lib/auth';
+import { useSession } from 'next-auth/react';
 import { SignOutButton } from '@/components/auth/sign-out-button';
 import { Rocket } from 'lucide-react';
 import { MobileMenu, type HeaderNavItem } from '@/components/layout/mobile-menu';
 
 const navItems: HeaderNavItem[] = [
+  { href: '/luna', label: 'Luna – Coach IA' },
   { href: '/aube', label: 'Aube – Découverte' },
   { href: '/cv-builder', label: 'Créateur de CV' },
   { href: '/letters', label: 'Studio Lettres' },
@@ -12,9 +15,9 @@ const navItems: HeaderNavItem[] = [
   { href: '/pricing', label: 'Offres & tarifs' },
 ];
 
-export async function SiteHeader() {
-  const session = await getAuthSession();
-  const isAuthenticated = Boolean(session?.user);
+export function SiteHeader() {
+  const { status } = useSession();
+  const isAuthenticated = status === 'authenticated';
 
   return (
     <header className="sticky top-0 z-40 w-full backdrop-blur">

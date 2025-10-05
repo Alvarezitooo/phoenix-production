@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -9,6 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { RefreshCw, Sparkles } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import { useToast } from '@/components/ui/toast';
+import { LunaAssistHint } from '@/components/luna/luna-assist-hint';
+import { logLunaInteraction } from '@/utils/luna-analytics';
 
 const focuses = [
   { key: 'behavioral', label: 'Comportemental' },
@@ -43,7 +45,7 @@ type NotesState = {
 };
 
 export function RiseCoach() {
-  const router = useRouter();
+  const { showToast } = useToast();
   const [context, setContext] = useState<RiseContext | null>(null);
   const [contextError, setContextError] = useState<string | null>(null);
   const [role, setRole] = useState('');
@@ -59,6 +61,22 @@ export function RiseCoach() {
   const sessions = useMemo(() => context?.sessions ?? [], [context?.sessions]);
   const resumeSummary = context?.resumeSummary ?? null;
   const letterSummary = context?.letterSummary ?? null;
+
+  const openLunaForRise = useCallback(
+    (promptOverride?: string) => {
+      const prompt =
+        promptOverride ??
+        `Tu es Luna, coach d'entretien. Prépare-moi 3 questions ${focus} pour le rôle ${role || 'à préciser'} et propose une structure de réponse.`;
+      window.dispatchEvent(new CustomEvent('phoenix:luna-open', { detail: { prompt, source: 'rise_coach' } }));
+      showToast({
+        title: 'Simulation Luna',
+        description: 'Conversation ouverte avec le contexte entretien.',
+        variant: 'info',
+      });
+      logLunaInteraction('rise_brief_luna', { role, focus, customPrompt: Boolean(promptOverride) });
+    },
+    [focus, role, showToast],
+  );
 
   const refreshContext = useCallback(async () => {
     setContextError(null);
@@ -112,6 +130,9 @@ export function RiseCoach() {
         })),
       );
       setStatusMessage('Atelier généré. Entraînez-vous et capturez vos réponses clés.');
+      openLunaForRise(
+        `Tu es Luna, coach d'entretien. Nous venons de générer des questions pour le rôle ${role}. Donne-moi une astuce pour structurer mes réponses ${focus} et une question piège à préparer.`,
+      );
     } catch (error) {
       console.error('[RISE_GENERATE]', error);
       setStatusMessage(error instanceof Error ? error.message : 'Erreur interne');
@@ -153,6 +174,9 @@ export function RiseCoach() {
       }
       setSessionId(loadedSession.id);
       setStatusMessage('Session Rise chargée. Ajustez vos réponses et sauvegardez.');
+      openLunaForRise(
+        `Tu es Luna, coach d'entretien. Nous reprenons la session ${loadedSession.role} axée ${loadedSession.focus}. Propose-moi une question de suivi et un conseil pour ancrer mes réponses.`,
+      );
     } catch (error) {
       console.error('[RISE_SESSION_LOAD]', error);
       setStatusMessage(error instanceof Error ? error.message : 'Erreur lors du chargement de la session');
@@ -201,9 +225,14 @@ export function RiseCoach() {
           <h2 className="text-3xl font-semibold text-white">Rise — Interview Studio</h2>
           <p className="text-sm text-white/60">Préparez vos réponses de manière structurée, sauvegardez vos entraînements et passez sur Luna.</p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-white/50">
-          <Sparkles className="h-4 w-4 text-emerald-300" />
-          Questions IA • Notes personnelles • Historique sessions
+        <div className="flex flex-wrap items-center gap-2 text-xs text-white/50">
+          <span className="inline-flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-emerald-300" />
+            Questions IA • Notes personnelles • Historique sessions
+          </span>
+          <Button type="button" variant="ghost" className="text-xs" onClick={() => openLunaForRise()}>
+            Briefer Luna
+          </Button>
         </div>
       </div>
 
@@ -251,6 +280,13 @@ export function RiseCoach() {
               <div className="space-y-2">
                 <label className="text-xs font-semibold uppercase tracking-wide text-white/60">Rôle ciblé</label>
                 <Input placeholder="Ex : Head of Product" value={role} onChange={(event) => setRole(event.target.value)} />
+                <LunaAssistHint
+                  helper="Formule ton objectif et demande à Luna une question phare."
+                  getPrompt={() =>
+                    `Tu es Luna, coach d'entretien. Je prépare un entretien pour le rôle ${role || 'à préciser'}. Donne-moi une question difficile et une structure de réponse ${focus}.`
+                  }
+                  source="rise_role"
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-semibold uppercase tracking-wide text-white/60">Focus d&apos;entraînement</label>
@@ -324,8 +360,17 @@ export function RiseCoach() {
                       <Button type="button" variant="secondary" className="text-xs" onClick={() => handleLoadSession(item.id)}>
                         Charger cette session
                       </Button>
-                      <Button type="button" variant="ghost" className="text-xs" onClick={() => router.push(`/luna?riseSession=${item.id}`)}>
-                        Continuer sur Luna
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="text-xs"
+                        onClick={() =>
+                          openLunaForRise(
+                            `Tu es Luna. Nous reprenons la session d'entretien ${item.role} (focus ${item.focus}). Donne-moi un plan d'entraînement en 3 étapes et une question piège à préparer.`,
+                          )
+                        }
+                      >
+                        Débriefer avec Luna
                       </Button>
                     </div>
                   </div>
@@ -388,8 +433,8 @@ export function RiseCoach() {
               <Button type="button" variant="secondary" onClick={saveNotes} loading={savingNotes}>
                 Sauvegarder les notes
               </Button>
-              <Button type="button" variant="ghost" onClick={() => router.push('/luna')}>
-                Continuer sur Luna
+              <Button type="button" variant="ghost" onClick={() => openLunaForRise()}>
+                Débriefer avec Luna
               </Button>
             </div>
           </CardContent>

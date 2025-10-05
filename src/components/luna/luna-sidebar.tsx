@@ -6,6 +6,7 @@ import { Bot, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
+import { logLunaInteraction } from '@/utils/luna-analytics';
 import { FeedbackWidget } from '@/components/feedback/feedback-widget';
 
 const fetchConversations = async () => {
@@ -44,6 +45,22 @@ export function LunaSidebar() {
     }
   }, [isOpen, conversation, conversationsQuery.data]);
 
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const custom = event as CustomEvent<{ prompt?: string; source?: string }>;
+      const prompt = custom.detail?.prompt ?? '';
+      const source = custom.detail?.source ?? 'unknown';
+      setIsOpen(true);
+      setMessage(prompt);
+      logLunaInteraction('sidebar_open_from_event', { source, hasPrompt: Boolean(prompt) });
+    };
+
+    window.addEventListener('phoenix:luna-open', handler as EventListener);
+    return () => {
+      window.removeEventListener('phoenix:luna-open', handler as EventListener);
+    };
+  }, []);
+
   const sendMessage = useMutation({
     mutationFn: async (payload: { message: string; conversationId?: string; focusArea: string }) => {
       const response = await fetch('/api/luna', {
@@ -60,6 +77,7 @@ export function LunaSidebar() {
     onSuccess: ({ conversation: updated }) => {
       setConversation(updated);
       setMessage('');
+      logLunaInteraction('sidebar_message_sent', { focusArea });
     },
   });
 
@@ -70,7 +88,15 @@ export function LunaSidebar() {
       <Button
         className="fixed bottom-6 right-6 z-40 shadow-lg"
         variant="primary"
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={() =>
+          setIsOpen((prev) => {
+            const next = !prev;
+            if (next) {
+              logLunaInteraction('sidebar_toggle_button', { source: 'floating_button' });
+            }
+            return next;
+          })
+        }
       >
         <MessageCircle className="h-4 w-4" />
         Luna

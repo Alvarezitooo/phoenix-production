@@ -21,6 +21,27 @@ function splitSummary(summary?: string | null) {
     .filter(Boolean);
 }
 
+function splitLines(value?: string | null) {
+  if (!value) return [];
+  return value
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+type AssessmentInsights = {
+  workPreferences: string[];
+  strengths: string[];
+  growthAreas?: string[];
+  interests?: string[];
+  narrative?: string | null;
+  keyMoments?: string;
+  roleVision?: string;
+  nonNegotiables?: string;
+  energyBoosters?: string;
+  energyDrainers?: string;
+} | null;
+
 type AssessmentCompleteReportProps = {
   summary: string | null;
   recommendations: Recommendation[];
@@ -31,6 +52,7 @@ type AssessmentCompleteReportProps = {
   selectionMessage: string | null;
   selectionError: string | null;
   onSelectMatch: (matchId: string) => Promise<void>;
+  context: AssessmentInsights;
 };
 
 export function AssessmentCompleteReport({
@@ -43,6 +65,7 @@ export function AssessmentCompleteReport({
   selectionMessage,
   selectionError,
   onSelectMatch,
+  context,
 }: AssessmentCompleteReportProps) {
   const summaryParagraphs = splitSummary(summary);
   const allSkills = uniqueValues(recommendations.flatMap((rec) => rec.requiredSkills ?? []));
@@ -50,6 +73,14 @@ export function AssessmentCompleteReport({
   const [exportLoading, setExportLoading] = useState<'pdf' | 'markdown' | null>(null);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const preferenceList = context?.workPreferences ?? [];
+  const strengthList = context?.strengths ?? [];
+  const growthList = context?.growthAreas ?? [];
+  const interestList = context?.interests ?? [];
+  const experienceList = splitLines(context?.keyMoments);
+  const constraintList = splitLines(context?.nonNegotiables);
+  const energyBoostList = splitLines(context?.energyBoosters);
+  const energyDrainList = splitLines(context?.energyDrainers);
 
   const quickActions = [
     {
@@ -153,6 +184,125 @@ export function AssessmentCompleteReport({
           )}
         </CardContent>
       </Card>
+
+      {context && (
+        <Card className="border-white/10 bg-white/5">
+          <CardHeader>
+            <CardTitle>Profil & ambition</CardTitle>
+            <CardDescription>Les éléments clés que vous avez partagés pour guider vos trajectoires.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5 text-sm text-white/70">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <h4 className="text-xs uppercase tracking-wide text-white/60">Préférences de travail</h4>
+                {preferenceList.length ? (
+                  <ul className="space-y-1 text-xs">
+                    {preferenceList.map((item) => (
+                      <li key={item}>• {item}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-white/50">Complétez vos préférences pour affiner les recommandations.</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <h4 className="text-xs uppercase tracking-wide text-white/60">Forces mobilisées</h4>
+                {strengthList.length ? (
+                  <ul className="space-y-1 text-xs">
+                    {strengthList.map((item) => (
+                      <li key={item}>• {item}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-white/50">Identifiez vos forces pour prioriser vos leviers de différenciation.</p>
+                )}
+              </div>
+            </div>
+            {context.narrative && (
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-xs text-white/70">
+                <h4 className="text-xs uppercase tracking-wide text-white/60">Narratif professionnel</h4>
+                <p className="mt-2 leading-relaxed text-white/80">{context.narrative}</p>
+              </div>
+            )}
+            {experienceList.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-xs uppercase tracking-wide text-white/60">Expériences marquantes</h4>
+                <ul className="space-y-1 text-xs">
+                  {experienceList.map((item) => (
+                    <li key={item}>• {item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <h4 className="text-xs uppercase tracking-wide text-white/60">Vision</h4>
+                {context.roleVision ? (
+                  <p className="text-xs text-white/80 leading-relaxed">{context.roleVision}</p>
+                ) : (
+                  <p className="text-xs text-white/50">Précisez votre prochaine étape pour personnaliser les plans d’action.</p>
+                )}
+                {growthList && growthList.length > 0 && (
+                  <div className="mt-3">
+                    <h5 className="text-xs uppercase tracking-wide text-white/60">Axes de progression</h5>
+                    <ul className="mt-1 space-y-1 text-xs">
+                      {growthList.map((item) => (
+                        <li key={item}>• {item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2">
+                <h4 className="text-xs uppercase tracking-wide text-white/60">Contraintes & énergie</h4>
+                {constraintList.length ? (
+                  <ul className="space-y-1 text-xs">
+                    {constraintList.map((item) => (
+                      <li key={item}>• {item}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-white/50">Ajoutez vos critères non négociables pour filtrer les trajectoires.</p>
+                )}
+                {(energyBoostList.length > 0 || energyDrainList.length > 0) && (
+                  <div className="mt-3 grid gap-2 text-xs text-white/70">
+                    {energyBoostList.length > 0 && (
+                      <div>
+                        <p className="font-semibold text-emerald-200/80">Ce qui vous nourrit</p>
+                        <ul className="mt-1 space-y-1">
+                          {energyBoostList.map((item) => (
+                            <li key={item}>• {item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {energyDrainList.length > 0 && (
+                      <div>
+                        <p className="font-semibold text-rose-200/80">À doser</p>
+                        <ul className="mt-1 space-y-1">
+                          {energyDrainList.map((item) => (
+                            <li key={item}>• {item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {interestList && interestList.length > 0 && (
+                  <div className="mt-3">
+                    <h5 className="text-xs uppercase tracking-wide text-white/60">Centres d’intérêt</h5>
+                    <ul className="mt-1 space-y-1 text-xs">
+                      {interestList.map((item) => (
+                        <li key={item}>• {item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="border-white/10 bg-white/5">
         <CardHeader>

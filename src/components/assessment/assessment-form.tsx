@@ -11,7 +11,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { CompatibilityBadge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { AssessmentCompleteReport } from '@/components/assessment/assessment-complete-report';
+import { LunaAssistHint } from '@/components/luna/luna-assist-hint';
 import { ArrowRight, Lightbulb, ShieldCheck, Zap } from 'lucide-react';
+import { useToast } from '@/components/ui/toast';
 import type { SubscriptionPlan } from '@prisma/client';
 import { useSession } from 'next-auth/react';
 
@@ -80,6 +82,21 @@ const COMPLETE_STEP_DETAILS: Record<string, { title: string; description: string
   'Préférences': {
     title: 'Ancrez votre quotidien idéal',
     description: 'Sélectionnez les contextes qui vous donnent le plus d’énergie et les forces que vous mobilisez naturellement.',
+  },
+  'Expériences marquantes': {
+    title: 'Mettez en avant vos preuves d’impact',
+    description: 'Décrivez 2 à 3 situations où vous avez fait la différence. Mentionnez le contexte, votre rôle et le résultat.',
+    bullets: ['Utilisez des verbes d’action + un résultat chiffré quand c’est possible', 'Une phrase par réalisation suffit'],
+  },
+  'Ambitions & contraintes': {
+    title: 'Clarifiez votre cap professionnel',
+    description: 'Expliquez l’évolution que vous visez et les conditions nécessaires pour qu’elle soit viable.',
+    bullets: ['Quel rôle ou périmètre ciblez-vous ?', 'Y a-t-il des critères non négociables (salaire, rythme, localisation) ?'],
+  },
+  'Énergie professionnelle': {
+    title: 'Cartographiez ce qui vous porte ou vous freine',
+    description: 'Notez ce qui nourrit votre motivation au quotidien et ce qui la fatigue pour ajuster vos trajectoires.',
+    bullets: ['Activités qui vous rechargent', 'Tâches ou environnements à doser'],
   },
   'Narratif professionnel': {
     title: 'Formulez votre ambition',
@@ -164,9 +181,27 @@ const formSchema = z.object({
   growthAreas: z.array(z.string()),
   interests: z.array(z.string()),
   narrative: z.string().optional(),
+  keyMoments: z.string().optional(),
+  roleVision: z.string().optional(),
+  nonNegotiables: z.string().optional(),
+  energyBoosters: z.string().optional(),
+  energyDrainers: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
+
+type ReportContext = {
+  workPreferences: string[];
+  strengths: string[];
+  growthAreas: string[];
+  interests: string[];
+  narrative?: string | null;
+  keyMoments?: string;
+  roleVision?: string;
+  nonNegotiables?: string;
+  energyBoosters?: string;
+  energyDrainers?: string;
+};
 
 export type Recommendation = {
   id?: string;
@@ -231,6 +266,8 @@ export function AssessmentForm() {
   const [selectingMatchId, setSelectingMatchId] = useState<string | null>(null);
   const [selectionMessage, setSelectionMessage] = useState<string | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
+  const [reportContext, setReportContext] = useState<ReportContext | null>(null);
+  const { showToast } = useToast();
   const {
     control,
     getValues,
@@ -250,6 +287,11 @@ export function AssessmentForm() {
       growthAreas: [],
       interests: [],
       narrative: '',
+      keyMoments: '',
+      roleVision: '',
+      nonNegotiables: '',
+      energyBoosters: '',
+      energyDrainers: '',
     },
     mode: 'onChange',
   });
@@ -257,9 +299,17 @@ export function AssessmentForm() {
   const steps = useMemo(() => {
     if (!mode) return [];
     if (mode === ASSESSMENT_MODES.QUICK) {
-      return ['Profil express', 'Préférences clés'];
+      return ['Profil express', 'Préférences clés', 'Vision rapide'];
     }
-    return ['Profil Big Five', 'RIASEC', 'Préférences', 'Narratif professionnel'];
+    return [
+      'Profil Big Five',
+      'RIASEC',
+      'Préférences',
+      'Expériences marquantes',
+      'Ambitions & contraintes',
+      'Énergie professionnelle',
+      'Narratif professionnel',
+    ];
   }, [mode]);
 
   const totalSteps = steps.length;
@@ -269,6 +319,11 @@ export function AssessmentForm() {
   const watchedStrengths = watch('strengths');
   const watchedGrowthAreas = watch('growthAreas');
   const watchedInterests = watch('interests');
+  const watchedKeyMoments = watch('keyMoments') ?? '';
+  const watchedRoleVision = watch('roleVision') ?? '';
+  const watchedNonNegotiables = watch('nonNegotiables') ?? '';
+  const watchedEnergyBoosters = watch('energyBoosters') ?? '';
+  const watchedEnergyDrainers = watch('energyDrainers') ?? '';
   const watchedBigFive = watch('bigFive');
   const watchedRiasec = watch('riasec');
   const activeStep = mode ? steps[currentStep] : null;
@@ -333,6 +388,45 @@ export function AssessmentForm() {
       }
     }
 
+    if (currentKey === 'Expériences marquantes') {
+      const value = (getValues('keyMoments') ?? '').trim();
+      if (mode === ASSESSMENT_MODES.COMPLETE && value.length < 80) {
+        setError('keyMoments', {
+          type: 'manual',
+          message: 'Décrivez au moins une expérience significative (80 caractères minimum).',
+        });
+        isValid = false;
+      } else {
+        clearErrors('keyMoments');
+      }
+    }
+
+    if (currentKey === 'Ambitions & contraintes') {
+      const vision = (getValues('roleVision') ?? '').trim();
+      if (mode === ASSESSMENT_MODES.COMPLETE && vision.length < 60) {
+        setError('roleVision', {
+          type: 'manual',
+          message: 'Précisez la trajectoire envisagée (60 caractères minimum).',
+        });
+        isValid = false;
+      } else {
+        clearErrors('roleVision');
+      }
+    }
+
+    if (currentKey === 'Vision rapide') {
+      const vision = (getValues('roleVision') ?? '').trim();
+      if (vision.length > 0 && vision.length < 30) {
+        setError('roleVision', {
+          type: 'manual',
+          message: 'Ajoutez quelques détails supplémentaires pour clarifier votre vision.',
+        });
+        isValid = false;
+      } else {
+        clearErrors('roleVision');
+      }
+    }
+
     if (currentKey === 'Narratif professionnel') {
       const narrativeValue = (getValues('narrative') ?? '').trim();
       if (mode === ASSESSMENT_MODES.COMPLETE) {
@@ -361,6 +455,18 @@ export function AssessmentForm() {
     if (!mode) return;
     setLoading(true);
     const values = getValues();
+    setReportContext({
+      workPreferences: values.workPreferences ?? [],
+      strengths: values.strengths ?? [],
+      growthAreas: values.growthAreas ?? [],
+      interests: values.interests ?? [],
+      narrative: values.narrative ?? '',
+      keyMoments: values.keyMoments,
+      roleVision: values.roleVision,
+      nonNegotiables: values.nonNegotiables,
+      energyBoosters: values.energyBoosters,
+      energyDrainers: values.energyDrainers,
+    });
     try {
       const response = await fetch('/api/assessments', {
         method: 'POST',
@@ -376,6 +482,11 @@ export function AssessmentForm() {
             interests: mode === ASSESSMENT_MODES.COMPLETE ? values.interests : undefined,
             narrative:
               mode === ASSESSMENT_MODES.COMPLETE ? (values.narrative ?? '').trim() : undefined,
+            keyMoments: mode === ASSESSMENT_MODES.COMPLETE ? values.keyMoments?.trim() ?? '' : values.keyMoments?.trim() ?? undefined,
+            roleVision: values.roleVision?.trim() ?? undefined,
+            nonNegotiables: values.nonNegotiables?.trim() ?? undefined,
+            energyBoosters: values.energyBoosters?.trim() ?? undefined,
+            energyDrainers: values.energyDrainers?.trim() ?? undefined,
           },
         }),
       });
@@ -393,6 +504,11 @@ export function AssessmentForm() {
       setResults(data.recommendations);
       setSummary(data.summary);
       setCompletedAssessmentId(data.assessmentId);
+      showToast({
+        title: mode === ASSESSMENT_MODES.COMPLETE ? 'Analyse complète finalisée' : 'Diagnostic express terminé',
+        description: 'Luna peut vous aider à célébrer, clarifier et préparer la suite.',
+        variant: 'success',
+      });
     } catch (error) {
       console.error(error);
       const message = error instanceof Error ? error.message : 'Une erreur est survenue';
@@ -416,9 +532,15 @@ export function AssessmentForm() {
     setValue('growthAreas', []);
     setValue('interests', []);
     setValue('narrative', '');
+    setValue('keyMoments', '');
+    setValue('roleVision', '');
+    setValue('nonNegotiables', '');
+    setValue('energyBoosters', '');
+    setValue('energyDrainers', '');
     setCompletedAssessmentId(null);
     setSelectionMessage(null);
     setSelectionError(null);
+    setReportContext(null);
   }
 
   function startCompleteFlow() {
@@ -435,9 +557,15 @@ export function AssessmentForm() {
     setValue('growthAreas', []);
     setValue('interests', []);
     setValue('narrative', '');
+    setValue('keyMoments', '');
+    setValue('roleVision', '');
+    setValue('nonNegotiables', '');
+    setValue('energyBoosters', '');
+    setValue('energyDrainers', '');
     setCompletedAssessmentId(null);
     setSelectionMessage(null);
     setSelectionError(null);
+    setReportContext(null);
   }
 
   function startExpressFlow() {
@@ -454,9 +582,15 @@ export function AssessmentForm() {
     setValue('growthAreas', []);
     setValue('interests', []);
     setValue('narrative', '');
+    setValue('keyMoments', '');
+    setValue('roleVision', '');
+    setValue('nonNegotiables', '');
+    setValue('energyBoosters', '');
+    setValue('energyDrainers', '');
     setCompletedAssessmentId(null);
     setSelectionMessage(null);
     setSelectionError(null);
+    setReportContext(null);
   }
 
   function handleExpressToggle(id: string) {
@@ -628,6 +762,7 @@ export function AssessmentForm() {
               selectionMessage={selectionMessage}
               selectionError={selectionError}
               onSelectMatch={handleSelectMatch}
+              context={reportContext}
             />
             <div className="flex items-center justify-end">
               <Button variant="ghost" onClick={resetFlow}>
@@ -951,6 +1086,169 @@ export function AssessmentForm() {
                     </div>
                   </>
                 )}
+              </div>
+            )}
+
+            {steps[currentStep] === 'Expériences marquantes' && (
+              <div className="space-y-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-white">Vos réalisations pivots</h3>
+                  <p className="mt-1 text-xs text-white/60">
+                    Une ligne par expérience : contexte, rôle, action, résultat. Laissez-vous guider par les chiffres ou les retours clients si possible.
+                  </p>
+                </div>
+                <LunaAssistHint
+                  helper="Besoin d’idées ? Luna peut reformuler vos impacts ou suggérer des exemples."
+                  getPrompt={() =>
+                    `Tu es Luna, coach carrière. Aide à clarifier des expériences professionnelles pour un bilan Aube. Propose 2 à 3 reformulations concrètes ou axes à préciser (format puces). Texte actuel : ${
+                      watchedKeyMoments.trim() || 'Pas encore de contenu, suggère des exemples adaptés à un parcours professionnel.'
+                    }`
+                  }
+                  source="aube_experiences"
+                />
+                <Textarea
+                  rows={6}
+                  value={watchedKeyMoments}
+                  onChange={(event) => setValue('keyMoments', event.target.value, { shouldValidate: false })}
+                  placeholder="Exemple : Transformation de l’équipe support (12 pers.) — mise en place d’un centre d’aide + scripts IA — réduction de 40 % du backlog en 3 mois."
+                />
+                <div className="flex items-center justify-between text-xs text-white/50">
+                  <span>{watchedKeyMoments?.split('\n').filter(Boolean).length ?? 0} expérience(s)</span>
+                  <span>{watchedKeyMoments?.length ?? 0}/600</span>
+                </div>
+                {errors.keyMoments && <p className="text-xs text-rose-300">{errors.keyMoments.message}</p>}
+              </div>
+            )}
+
+            {steps[currentStep] === 'Ambitions & contraintes' && (
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-white">Cap souhaité</h3>
+                  <LunaAssistHint
+                    helper="Luna peut t’aider à formuler ton projet professionnel en une phrase claire."
+                    getPrompt={() =>
+                      `Tu es Luna, coach de carrière. Aide à formuler la trajectoire professionnelle visée : ${
+                        watchedRoleVision.trim() || 'Aucune précision encore, propose 2 pistes de formulations selon un profil en transition.'
+                      }.
+                      Fournis 2 suggestions synthétiques (phrases courtes) et une question de clarification.`
+                    }
+                    source="aube_ambitions"
+                  />
+                  <Textarea
+                    rows={4}
+                    value={watchedRoleVision}
+                    onChange={(event) => setValue('roleVision', event.target.value, { shouldValidate: false })}
+                    placeholder="Exemple : Piloter une équipe produit data dans une scale-up impact, en lien direct avec CPO/CEO, pour relier stratégie business et analytics."
+                  />
+                  <div className="flex items-center justify-end text-xs text-white/50">
+                    <span>{watchedRoleVision?.length ?? 0}/400</span>
+                  </div>
+                  {errors.roleVision && <p className="text-xs text-rose-300">{errors.roleVision.message}</p>}
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-white">Conditions à respecter (optionnel)</h3>
+                  <LunaAssistHint
+                    label="Lister avec Luna"
+                    helper="Identifiez les contraintes indispensables (salaire, rythme, culture…)."
+                    getPrompt={() =>
+                      `Tu es Luna. L'utilisateur veut préciser ses contraintes professionnelles pour orienter ses trajectoires. Texte actuel : ${
+                        watchedNonNegotiables.trim() || 'Pas encore d’éléments, propose une checklist concise de contraintes courantes.'
+                      }.
+                      Réponds par 3 suggestions de contraintes formulées en français.`
+                    }
+                    source="aube_contraintes"
+                  />
+                  <Textarea
+                    rows={3}
+                    value={watchedNonNegotiables}
+                    onChange={(event) => setValue('nonNegotiables', event.target.value, { shouldValidate: false })}
+                    placeholder="Salaire, rythme, localisation, modèle d’organisation, valeurs indispensables..."
+                  />
+                  <div className="flex items-center justify-end text-xs text-white/50">
+                    <span>{watchedNonNegotiables?.length ?? 0}/300</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {steps[currentStep] === 'Énergie professionnelle' && (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="md:col-span-2">
+                  <LunaAssistHint
+                    helper="Décrivez ce qui vous porte ou vous freine, Luna peut suggérer des pistes de régulation."
+                    getPrompt={() =>
+                      `Tu es Luna, coach énergie. L'utilisateur décrit ce qui lui donne ou retire de l'énergie au travail. Liste ce qu'il a noté comme boosters : ${
+                        watchedEnergyBoosters.trim() || 'aucun booster mentionné'
+                      }. Liste ce qu'il a noté comme freins : ${
+                        watchedEnergyDrainers.trim() || 'aucun frein mentionné'
+                      }. Propose 2 recommandations pour maximiser l'énergie et 2 idées pour limiter les freins (format puces).`
+                    }
+                    source="aube_energie"
+                  />
+                </div>
+                <div className="space-y-2 rounded-3xl border border-white/10 bg-white/5 p-4">
+                  <h3 className="text-sm font-semibold text-white">Ce qui vous dynamise</h3>
+                  <Textarea
+                    rows={4}
+                    value={watchedEnergyBoosters}
+                    onChange={(event) => setValue('energyBoosters', event.target.value, { shouldValidate: false })}
+                    placeholder="Ex : Ateliers transverses, contact client direct, rythmes projets courts, pair design..."
+                  />
+                  <div className="flex items-center justify-end text-xs text-white/50">
+                    <span>{watchedEnergyBoosters?.length ?? 0}/300</span>
+                  </div>
+                </div>
+                <div className="space-y-2 rounded-3xl border border-white/10 bg-white/5 p-4">
+                  <h3 className="text-sm font-semibold text-white">Ce qui vous épuise</h3>
+                  <Textarea
+                    rows={4}
+                    value={watchedEnergyDrainers}
+                    onChange={(event) => setValue('energyDrainers', event.target.value, { shouldValidate: false })}
+                    placeholder="Ex : Reporting micro-managé, décisions opaques, contexte hyper-politique, surcharge réunion..."
+                  />
+                  <div className="flex items-center justify-end text-xs text-white/50">
+                    <span>{watchedEnergyDrainers?.length ?? 0}/300</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {steps[currentStep] === 'Vision rapide' && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-white">Votre prochaine étape (optionnel)</h3>
+                  <LunaAssistHint
+                    helper="Luna peut t’aider à résumer en une phrase claire."
+                    getPrompt={() =>
+                      `Tu es Luna. Reformule la prochaine étape de carrière en une phrase inspirante et précise. Texte actuel : ${
+                        watchedRoleVision.trim() || 'Rien pour le moment, propose deux pistes génériques mais crédibles.'
+                      }. Réponds avec deux propositions.`
+                    }
+                    source="aube_vision_rapide"
+                  />
+                  <Textarea
+                    rows={3}
+                    value={watchedRoleVision}
+                    onChange={(event) => setValue('roleVision', event.target.value, { shouldValidate: false })}
+                    placeholder="Ex : Rejoindre une PME tech comme Product Ops pour structurer les rituels data/produit."
+                  />
+                  <div className="flex items-center justify-end text-xs text-white/50">
+                    <span>{watchedRoleVision?.length ?? 0}/240</span>
+                  </div>
+                  {errors.roleVision && <p className="text-xs text-rose-300">{errors.roleVision.message}</p>}
+                </div>
+                <div className="space-y-2">
+                  <h4 className="text-xs uppercase tracking-wide text-white/50">Points de vigilance (optionnel)</h4>
+                  <Textarea
+                    rows={3}
+                    value={watchedNonNegotiables}
+                    onChange={(event) => setValue('nonNegotiables', event.target.value, { shouldValidate: false })}
+                    placeholder="Contraintes ou critères clés pour filtrer vos pistes."
+                  />
+                  <div className="flex items-center justify-end text-xs text-white/50">
+                    <span>{watchedNonNegotiables?.length ?? 0}/240</span>
+                  </div>
+                </div>
               </div>
             )}
 

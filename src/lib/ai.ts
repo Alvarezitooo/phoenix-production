@@ -11,7 +11,7 @@ const gemini = geminiKey ? new GoogleGenerativeAI(geminiKey) : null;
 
 type Provider = 'openai' | 'gemini';
 
-const PROMPT_VERSION = 'aube_reco_fr_v2';
+const PROMPT_VERSION = 'aube_reco_fr_v3';
 
 export type CareerRecommendation = {
   id?: string;
@@ -147,6 +147,29 @@ function buildProfileNarrative(payload: AssessmentPayload, bigFive?: string | nu
   if (payload.narrative) {
     segments.push(`Ambition exprimée : ${payload.narrative}.`);
   }
+  if (payload.keyMoments) {
+    const highlights = payload.keyMoments
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, 3)
+      .join(' | ');
+    if (highlights) {
+      segments.push(`Expériences marquantes : ${highlights}.`);
+    }
+  }
+  if (payload.roleVision) {
+    segments.push(`Trajectoire visée : ${payload.roleVision}.`);
+  }
+  if (payload.nonNegotiables) {
+    segments.push(`Contraintes clés : ${payload.nonNegotiables}.`);
+  }
+  if (payload.energyBoosters) {
+    segments.push(`Sources d’énergie : ${payload.energyBoosters}.`);
+  }
+  if (payload.energyDrainers) {
+    segments.push(`Points d’attention énergie : ${payload.energyDrainers}.`);
+  }
   return segments.join(' ');
 }
 
@@ -159,6 +182,11 @@ type AssessmentPayload = {
   growthAreas?: string[];
   interests?: string[];
   narrative?: string;
+  keyMoments?: string;
+  roleVision?: string;
+  nonNegotiables?: string;
+  energyBoosters?: string;
+  energyDrainers?: string;
 };
 
 type ResumeContext = {
