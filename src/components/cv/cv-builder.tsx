@@ -186,6 +186,41 @@ export function CvBuilder() {
     }
   }
 
+  function prepareSummary(summary?: string | null) {
+    if (!summary) return '';
+    const sentences = summary
+      .split(/\n+/)
+      .map((segment) => segment.trim())
+      .filter(Boolean)
+      .join(' ')
+      .split(/(?<=\.)\s+/)
+      .filter(Boolean);
+    const selected = sentences.slice(0, 3).join(' ');
+    const trimmed = selected || summary.trim();
+    return trimmed.length > 400 ? `${trimmed.slice(0, 397).trim()}…` : trimmed;
+  }
+
+  function buildSkills(
+    match?: ContextResponse['careerMatches'][number] | null,
+    assessment?: ContextResponse['assessment'] | null,
+  ) {
+    const lowerSeen = new Set<string>();
+    const result: string[] = [];
+    const pushSkill = (skill: string) => {
+      const clean = skill.replace(/\s+/g, ' ').trim();
+      if (!clean) return;
+      const key = clean.toLowerCase();
+      if (lowerSeen.has(key)) return;
+      lowerSeen.add(key);
+      result.push(clean);
+    };
+
+    match?.requiredSkills?.forEach(pushSkill);
+    assessment?.strengths?.forEach(pushSkill);
+
+    return result;
+  }
+
   function autofillFromContext() {
     if (!context) return;
     const match = selectedMatch;
@@ -193,17 +228,16 @@ export function CvBuilder() {
 
     if (match) {
       form.setValue('targetRole', match.title, { shouldValidate: true });
-      if (match.requiredSkills.length > 0) {
-        form.setValue('skills', match.requiredSkills.join(', '), { shouldValidate: true });
-      }
     }
 
-    if (assessment?.summary) {
-      form.setValue('summary', assessment.summary, { shouldValidate: true });
+    const suggestedSkills = buildSkills(match, assessment);
+    if (suggestedSkills.length > 0) {
+      form.setValue('skills', suggestedSkills.slice(0, 12).join(', '), { shouldValidate: true });
     }
 
-    if (assessment?.strengths?.length && (!match || match.requiredSkills.length === 0)) {
-      form.setValue('skills', assessment.strengths.join(', '), { shouldValidate: true });
+    const preparedSummary = prepareSummary(assessment?.summary);
+    if (preparedSummary) {
+      form.setValue('summary', preparedSummary, { shouldValidate: true });
     }
 
     ensureExperienceCount();
@@ -396,14 +430,6 @@ export function CvBuilder() {
     setDraftId(null);
     setIsEditingResume(false);
     setStatusMessage('Réinitialisé. Remplissez le formulaire pour générer un nouveau CV.');
-  }
-
-  function handleSendToLuna() {
-    if (!draftId) {
-      setStatusMessage("Générez et sauvegardez un CV pour l'envoyer à Luna.");
-      return;
-    }
-    router.push(`/luna?resumeDraft=${draftId}`);
   }
 
   const openLunaForCurrentCV = useCallback(() => {
@@ -699,9 +725,9 @@ export function CvBuilder() {
                 <Button type="button" variant="secondary" onClick={handleSaveDraft} loading={saveDraftLoading}>
                   Sauvegarder le brouillon
                 </Button>
-                <Button type="button" variant="ghost" onClick={handleSendToLuna}>
-                  Envoyer à Luna
-                </Button>
+                    <Button type="button" variant="ghost" onClick={openLunaForCurrentCV}>
+                      Débriefer avec Luna
+                    </Button>
                 <Button type="button" variant="ghost" onClick={handleLaunchRise}>
                   Préparer sur Rise
                 </Button>
