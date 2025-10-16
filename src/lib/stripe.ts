@@ -1,56 +1,22 @@
 import Stripe from 'stripe';
-import type { SubscriptionPlan } from '@prisma/client';
-import { getStripePriceId } from '@/lib/subscription';
 
-const stripeSecret = process.env.STRIPE_SECRET_KEY;
+let stripeClient: Stripe | null = null;
 
-export const stripe = stripeSecret
-  ? new Stripe(stripeSecret, {
-      apiVersion: '2025-09-30.clover' as Stripe.LatestApiVersion,
-    })
-  : null;
+export function getStripeClient() {
+  if (stripeClient) return stripeClient;
 
-export async function createCheckoutSession(params: {
-  userId: string;
-  email: string;
-  plan: SubscriptionPlan;
-  successUrl: string;
-  cancelUrl: string;
-  customerId?: string | null;
-}) {
-  if (!stripe) {
-    throw new Error('Stripe is not configured');
+  const secret = process.env.STRIPE_SECRET_KEY;
+  if (!secret) {
+    throw new Error('Stripe secret key non configurée (STRIPE_SECRET_KEY).');
   }
 
-  if (params.plan === 'DISCOVERY') {
-    throw new Error('Discovery plan does not require a checkout session');
-  }
-
-  const priceId = getStripePriceId(params.plan);
-
-  const session = await stripe.checkout.sessions.create({
-    mode: 'subscription',
-    customer: params.customerId ?? undefined,
-    customer_email: params.customerId ? undefined : params.email,
-    line_items: [
-      {
-        price: priceId,
-        quantity: 1,
-      },
-    ],
-    metadata: {
-      userId: params.userId,
-      subscriptionPlan: params.plan,
-    },
-    subscription_data: {
-      metadata: {
-        userId: params.userId,
-        subscriptionPlan: params.plan,
-      },
-    },
-    success_url: params.successUrl,
-    cancel_url: params.cancelUrl,
+  stripeClient = new Stripe(secret, {
+    apiVersion: '2024-06-20',
   });
 
-  return session;
+  return stripeClient;
+}
+
+export function getAppBaseUrl() {
+  return process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_URL ?? 'http://localhost:3000';
 }

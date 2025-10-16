@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { assertActiveSubscription } from '@/lib/subscription';
+import { spendEnergy } from '@/lib/energy';
 import { buildAssessmentReportMarkdown } from '@/lib/aube/report';
 import type { Recommendation } from '@/components/assessment/assessment-form';
 
@@ -13,19 +13,10 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
   const { id: assessmentId } = await context.params;
 
-  try {
-    await assertActiveSubscription(session.user.id, { requiredPlan: 'PRO' });
-  } catch (error) {
-    if (error instanceof Error) {
-      if (error.message === 'PLAN_UPGRADE_REQUIRED') {
-        return NextResponse.json({ message: 'Le plan Pro est requis pour exporter le rapport Aube.' }, { status: 403 });
-      }
-      if (error.message === 'SUBSCRIPTION_REQUIRED') {
-        return NextResponse.json({ message: 'Abonnement requis pour accéder au rapport.' }, { status: 402 });
-      }
-    }
-    throw error;
-  }
+  await spendEnergy(session.user.id, 'assessment.quick', {
+    costOverride: 0,
+    metadata: { module: 'assessment-export', format: 'markdown', assessmentId },
+  });
 
   const assessment = await prisma.assessment.findFirst({
     where: { id: assessmentId, userId: session.user.id },

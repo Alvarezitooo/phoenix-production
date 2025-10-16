@@ -2,8 +2,22 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getAuthSession } from '@/lib/auth';
 import { generateCoverLetter } from '@/lib/ai';
-import { assertActiveSubscription, assertWithinQuota } from '@/lib/subscription';
+import { EnergyError, spendEnergy } from '@/lib/energy';
 import { prisma } from '@/lib/prisma';
+
+const mirrorPersistSchema = z.object({
+  mirrorText: z.string().min(20),
+  keywords: z.array(z.string().min(1)).min(1).max(8),
+  emotions: z.array(z.string().min(1)).min(1).max(5),
+  energyPulse: z.string().optional().nullable(),
+  rune: z
+    .object({
+      id: z.string().min(2),
+      confidence: z.number().min(0).max(1),
+    })
+    .nullable()
+    .optional(),
+});
 
 const generateSchema = z.object({
   jobTitle: z.string().min(2),
@@ -14,11 +28,13 @@ const generateSchema = z.object({
   highlights: z.array(z.string().min(5)).min(2),
   alignmentHooks: z.array(z.string().min(3)).optional(),
   resumeSummary: z.string().min(20),
+  mirror: mirrorPersistSchema.optional(),
 });
 
 const updateSchema = z.object({
   draftId: z.string(),
   content: z.string().min(50),
+  mirror: mirrorPersistSchema.optional().nullable(),
 });
 
 export async function GET(request: Request) {
@@ -53,23 +69,12 @@ export async function POST(request: Request) {
 
   try {
     const payload = generateSchema.parse(await request.json());
-    const subscription = await assertActiveSubscription(session.user.id);
+
     try {
-      await assertWithinQuota(session.user.id, 'letterGenerations');
+      await spendEnergy(session.user.id, 'letters.generate', { metadata: { module: 'letters' } });
     } catch (error) {
-      if (error instanceof Error && error.message === 'QUOTA_EXCEEDED') {
-        return NextResponse.json(
-          {
-            message:
-              subscription?.subscriptionPlan === 'DISCOVERY'
-                ? 'Le plan Découverte permet uniquement de visualiser un aperçu de lettre. Passez au plan Essentiel pour générer vos lettres en illimité.'
-                : 'Quota mensuel atteint pour les lettres. Passez au plan Pro pour débloquer l’illimité.',
-          },
-          { status: 429 },
-        );
-      }
-      if (error instanceof Error && error.message === 'SUBSCRIPTION_REQUIRED') {
-        return NextResponse.json({ message: 'Abonnement requis pour générer une lettre.' }, { status: 402 });
+      if (error instanceof EnergyError && error.code === 'INSUFFICIENT_ENERGY') {
+        return NextResponse.json({ message: 'Énergie insuffisante pour générer une lettre.' }, { status: 402 });
       }
       throw error;
     }
@@ -89,6 +94,12 @@ export async function POST(request: Request) {
           alignmentHooks: payload.alignmentHooks ?? [],
           input: payload,
         },
+        mirrorText: payload.mirror?.mirrorText,
+        mirrorKeywords: payload.mirror?.keywords ?? undefined,
+        mirrorEmotions: payload.mirror?.emotions ?? undefined,
+        mirrorEnergyPulse: payload.mirror?.energyPulse ?? undefined,
+        runeId: payload.mirror?.rune?.id,
+        runeConfidence: payload.mirror?.rune?.confidence ?? undefined,
       },
     });
 
@@ -97,14 +108,6 @@ export async function POST(request: Request) {
     console.error('[LETTER_GENERATE]', error);
     if (error instanceof z.ZodError) {
       return NextResponse.json({ message: 'Invalid payload', issues: error.issues }, { status: 400 });
-    }
-    if (error instanceof Error) {
-      if (error.message === 'SUBSCRIPTION_REQUIRED') {
-        return NextResponse.json({ message: 'Abonnement requis pour générer une lettre.' }, { status: 402 });
-      }
-      if (error.message === 'PLAN_UPGRADE_REQUIRED') {
-        return NextResponse.json({ message: 'Plan insuffisant pour générer la lettre.' }, { status: 403 });
-      }
     }
     return NextResponse.json({ message: 'Unable to generate letter' }, { status: 500 });
   }
@@ -134,6 +137,12 @@ export async function PATCH(request: Request) {
           ...((draft.content ?? {}) as Record<string, unknown>),
           letterMarkdown: payload.content,
         },
+        mirrorText: payload.mirror?.mirrorText ?? draft.mirrorText,
+        mirrorKeywords: payload.mirror?.keywords ?? draft.mirrorKeywords ?? undefined,
+        mirrorEmotions: payload.mirror?.emotions ?? draft.mirrorEmotions ?? undefined,
+        mirrorEnergyPulse: payload.mirror?.energyPulse ?? draft.mirrorEnergyPulse ?? undefined,
+        runeId: payload.mirror?.rune?.id ?? draft.runeId,
+        runeConfidence: payload.mirror?.rune?.confidence ?? draft.runeConfidence ?? undefined,
       },
     });
 

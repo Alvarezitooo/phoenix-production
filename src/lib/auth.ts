@@ -4,10 +4,8 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import { compare } from 'bcryptjs';
 import { prisma } from './prisma';
 import { getServerSession } from 'next-auth';
-import type { SubscriptionPlan, SubscriptionStatus } from '@prisma/client';
-
-const DEFAULT_PLAN = (process.env.DEFAULT_SUBSCRIPTION_PLAN ?? 'DISCOVERY') as SubscriptionPlan;
-const INACTIVE_STATUS: SubscriptionStatus = 'INACTIVE';
+import { EnergyTransactionType } from '@prisma/client';
+const INITIAL_ENERGY_BALANCE = Number.parseInt(process.env.INITIAL_ENERGY_BALANCE ?? '40', 10);
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -55,49 +53,22 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.sub ?? '';
-        session.user.subscriptionPlan = (token.subscriptionPlan as string | undefined) ?? 'ESSENTIAL';
-        session.user.subscriptionStatus = (token.subscriptionStatus as string | undefined) ?? 'INACTIVE';
-        session.user.currentPeriodEnd = token.currentPeriodEnd as string | undefined;
         session.user.preferredCareerMatchId = token.preferredCareerMatchId as string | undefined;
       }
       return session;
     },
     async jwt({ token, user }) {
       if (user) {
-        const subscription = await prisma.user.findUnique({
+        const dbUser = await prisma.user.findUnique({
           where: { id: user.id },
           select: {
-            subscriptionPlan: true,
-            subscriptionStatus: true,
-            currentPeriodEnd: true,
             preferredCareerMatchId: true,
           },
         });
 
-        token.subscriptionPlan = subscription?.subscriptionPlan ?? DEFAULT_PLAN;
-        token.subscriptionStatus = subscription?.subscriptionStatus ?? INACTIVE_STATUS;
-        token.currentPeriodEnd = subscription?.currentPeriodEnd?.toISOString();
-        token.preferredCareerMatchId = subscription?.preferredCareerMatchId ?? null;
+        token.preferredCareerMatchId = dbUser?.preferredCareerMatchId ?? null;
       }
 
-      if (token.sub) {
-        if (!token.subscriptionPlan || !token.subscriptionStatus) {
-          const subscription = await prisma.user.findUnique({
-            where: { id: token.sub },
-            select: {
-              subscriptionPlan: true,
-              subscriptionStatus: true,
-              currentPeriodEnd: true,
-              preferredCareerMatchId: true,
-            },
-          });
-
-          token.subscriptionPlan = subscription?.subscriptionPlan ?? DEFAULT_PLAN;
-          token.subscriptionStatus = subscription?.subscriptionStatus ?? INACTIVE_STATUS;
-          token.currentPeriodEnd = subscription?.currentPeriodEnd?.toISOString();
-          token.preferredCareerMatchId = subscription?.preferredCareerMatchId ?? token.preferredCareerMatchId ?? null;
-        }
-      }
       return token;
     },
     async redirect({ url, baseUrl }) {
@@ -114,29 +85,31 @@ export const authOptions: NextAuthOptions = {
   },
   events: {
     async createUser({ user }) {
-      const plan = (user.subscriptionPlan as SubscriptionPlan | null) ?? DEFAULT_PLAN;
-      const status = (user.subscriptionStatus as SubscriptionStatus | null) ?? INACTIVE_STATUS;
-      const now = new Date();
-      const data: {
-        subscriptionPlan: SubscriptionPlan;
-        subscriptionStatus: SubscriptionStatus;
-        currentPeriodStart?: Date | null;
-        currentPeriodEnd?: Date | null;
-        preferredCareerMatchId?: string | null;
-      } = {
-        subscriptionPlan: plan,
-        subscriptionStatus: status,
-      };
+      const balance = Number.isFinite(INITIAL_ENERGY_BALANCE) ? Math.max(INITIAL_ENERGY_BALANCE, 0) : 0;
 
-      if (plan === 'DISCOVERY' && status === INACTIVE_STATUS) {
-        data.subscriptionStatus = 'ACTIVE';
-        data.currentPeriodStart = now;
-        data.currentPeriodEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
-        data.preferredCareerMatchId = null;
-      }
-      await prisma.user.update({
-        where: { id: user.id },
-        data,
+      await prisma.$transaction(async (tx) => {
+        await tx.energyWallet.upsert({
+          where: { userId: user.id },
+          update: {},
+          create: {
+            userId: user.id,
+            balance,
+            lifetimeEarned: balance,
+          },
+        });
+
+        if (balance > 0) {
+          await tx.energyTransaction.create({
+            data: {
+              userId: user.id,
+              type: EnergyTransactionType.BONUS,
+              amount: balance,
+              balanceAfter: balance,
+              reference: 'signup_bonus',
+              metadata: { reason: 'signup' },
+            },
+          });
+        }
       });
     },
   },

@@ -3,8 +3,6 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { hash } from 'bcryptjs';
 
-const DEFAULT_PLAN = (process.env.DEFAULT_SUBSCRIPTION_PLAN ?? 'DISCOVERY') as 'DISCOVERY' | 'ESSENTIAL' | 'PRO';
-
 const schema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
@@ -23,20 +21,11 @@ export async function POST(request: Request) {
     }
 
     const hashedPassword = await hash(data.password, 12);
-    const selectedPlan = (data.plan as typeof DEFAULT_PLAN | undefined) ?? DEFAULT_PLAN;
-    const isDiscovery = selectedPlan === 'DISCOVERY';
-    const periodStart = new Date();
-    const periodEnd = isDiscovery ? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) : null;
-
     await prisma.user.create({
       data: {
         name: data.name,
         email: data.email.toLowerCase(),
         hashedPassword,
-        subscriptionPlan: selectedPlan,
-        subscriptionStatus: isDiscovery ? 'ACTIVE' : 'INACTIVE',
-        currentPeriodStart: isDiscovery ? periodStart : null,
-        currentPeriodEnd: isDiscovery ? periodEnd : null,
       },
     });
 

@@ -1,7 +1,12 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
 import type { AssessmentMode } from '@prisma/client';
+import type { AubeInput } from '@/lib/aube/profile';
+import { LETTER_TONE_LABEL, type LetterTone } from '@/config/letters';
+import { EmbeddingSourceType } from '@prisma/client';
+import { parseLetterMirrorResponse, type LetterMirrorPayload } from '@/lib/letters/mirror';
 import { getCachedResponse, hashCacheKey, setCachedResponse } from '@/lib/cache';
+import { getRecentEmotionalMemories } from '@/lib/memory';
 
 const openAiKey = process.env.OPENAI_API_KEY;
 const geminiKey = process.env.GOOGLE_GENERATIVE_API_KEY;
@@ -30,6 +35,17 @@ type InterviewQuestion = {
   competency: string;
   guidance: string;
 };
+
+export type LetterMirrorInput = {
+  jobTitle: string;
+  company: string;
+  tone: LetterTone;
+  language: 'fr' | 'en';
+  highlights: string[];
+  resumeSummary: string;
+};
+
+export type LetterMirrorResult = LetterMirrorPayload;
 
 const RIASEC_SECTOR_MAP: Record<string, { sectors: string[]; keywords: string[] }> = {
   realistic: {
@@ -197,6 +213,7 @@ type ResumeContext = {
   narrative?: string | null;
   quickWins?: string[];
   developmentFocus?: string[];
+  element?: string;
   selectedMatch?: {
     title: string;
     compatibilityScore?: number;
@@ -207,6 +224,10 @@ type ResumeContext = {
     cvBuilder?: boolean;
     letters?: boolean;
     rise?: boolean;
+  };
+  riseStats?: {
+    questsCompleted?: number;
+    victoriesLogged?: number;
   };
 };
 
@@ -318,7 +339,7 @@ function buildRiasecContext(riasecScores: Record<string, number>) {
   };
 }
 
-async function callWithFallback(prompt: string) {
+export async function callWithFallback(prompt: string) {
   const providers: Provider[] = [];
   if (gemini) providers.push('gemini');
   if (openai) providers.push('openai');
@@ -403,20 +424,59 @@ type CoverLetterResult = {
   alignScore?: number;
 };
 
+export async function generateLetterMirror(
+  payload: LetterMirrorInput,
+  options?: { userId?: string },
+): Promise<LetterMirrorResult> {
+  const languageLabel = payload.language === 'en' ? 'anglais' : 'français';
+  const toneLabel = LETTER_TONE_LABEL[payload.tone];
+  const highlightsBlock = payload.highlights.length
+    ? payload.highlights.map((item) => `- ${item}`).join('\n')
+    : 'Aucun point fort renseigné';
+
+  let memoryContext = '';
+  if (options?.userId) {
+    const memories = await getRecentEmotionalMemories({
+      userId: options.userId,
+      limit: 3,
+      sourceTypes: [EmbeddingSourceType.LETTER_DRAFT, EmbeddingSourceType.JOURNAL_ENTRY],
+    });
+
+    if (memories.length > 0) {
+      memoryContext = `Souviens-toi des éléments suivants déjà partagés par la personne :\n${memories
+        .map((line) => `- ${line}`)
+        .join('\n')}\n\n`;
+    }
+  }
+
+  const prompt =
+    `${memoryContext}Tu es Luna, guide empathique et miroir narratif. Analyse les informations suivantes pour formuler un reflet en ${languageLabel} :\n\n` +
+    `Poste ciblé : ${payload.jobTitle}\n` +
+    `Entreprise : ${payload.company}\n` +
+    `Ton souhaité : ${toneLabel}\n` +
+    `Résumé de parcours : ${payload.resumeSummary}\n` +
+    `Points forts :\n${highlightsBlock}\n\n` +
+    `Contraintes :\n` +
+    `- Rédige un mirror de 3 phrases maximum (120 mots max) en adoptant le tutoiement et une tonalité ${toneLabel}.\n` +
+    `- Identifie 3 à 5 mots ou expressions clés représentatives.\n` +
+    `- Décris 3 émotions (positives ou à apaiser) vécues par la personne.\n` +
+    `- Optionnel : propose une métaphore courte (energyPulse) liée à la lune/lumière.\n` +
+    `Renvoie strictement un JSON avec la structure suivante :\n` +
+    `{"mirror": "...", "keywords": ["..."], "emotionalSpectrum": ["..."], "energyPulse": "..."}` +
+    `\nAucun autre texte, pas de Markdown.`;
+
+  const response = await callWithFallback(prompt);
+  const parsed = parseLetterMirrorResponse(response);
+  return parsed;
+}
+
 export async function generateCoverLetter(payload: CoverLetterPayload) {
   const cacheKey = hashCacheKey({ type: 'cover_letter', payload });
   const cached = await getCachedResponse<CoverLetterResult>(cacheKey);
   if (cached) return cached.letterMarkdown;
 
   const languageLabel = payload.language === 'en' ? 'anglais' : 'français';
-  const toneMap: Record<CoverLetterPayload['tone'], string> = {
-    professional: 'professionnel',
-    friendly: 'chaleureux',
-    impactful: 'percutant',
-    storytelling: 'narratif',
-    executive: 'exécutif',
-  };
-  const toneLabel = toneMap[payload.tone];
+  const toneLabel = LETTER_TONE_LABEL[payload.tone];
   const hooks = payload.alignmentHooks?.length ? payload.alignmentHooks.join(' | ') : "Relier vos motivations à la culture de l’entreprise.";
 
   const prompt = `Tu es un copywriter carrière senior. Rédige en ${languageLabel} une lettre de motivation pour le poste ${payload.jobTitle} chez ${payload.company}. Le ton doit être ${toneLabel}. Retourne un JSON avec les clés : letterMarkdown (Markdown avec introduction, section impact, section alignement culturel, conclusion), bulletSummary (tableau de 3 puces résumant la lettre), callToAction (phrase de conclusion), alignScore (estimation 0-100). Mets en avant les éléments suivants : ${payload.highlights.join(
@@ -442,11 +502,43 @@ export async function generateCoverLetter(payload: CoverLetterPayload) {
 export async function generateInterviewCoachResponse(
   history: Array<{ role: 'user' | 'assistant'; content: string }>,
   focusArea: string,
+  options?: { userId?: string },
 ) {
-  const prompt = `Tu es Luna, coach d’entretien bienveillante mais directe. Poursuis la conversation en guidant l’utilisateur, en t’appuyant sur le focus suivant : ${focusArea}. Historique : ${JSON.stringify(
-    history,
-  )}. Réponds en français, propose des questions de relance concrètes et des conseils actionnables.`;
+  let memoryContext = '';
+  if (options?.userId) {
+    const memories = await getRecentEmotionalMemories({
+      userId: options.userId,
+      limit: 3,
+      sourceTypes: [EmbeddingSourceType.JOURNAL_ENTRY, EmbeddingSourceType.LETTER_DRAFT, EmbeddingSourceType.RISE_SESSION],
+    });
+    if (memories.length > 0) {
+      memoryContext = `Référence tes souvenirs de la personne :\n${memories.map((line) => `- ${line}`).join('\n')}\n\n`;
+    }
+  }
+
+  const prompt =
+    `${memoryContext}Tu es Luna, coach d’entretien bienveillante mais directe. Poursuis la conversation en guidant l’utilisateur, en t’appuyant sur le focus suivant : ${focusArea}. Historique : ${JSON.stringify(
+      history,
+    )}. Réponds en français, propose des questions de relance concrètes et des conseils actionnables.`;
   return callWithFallback(prompt);
+}
+
+export async function generateAubeReflection(entries: AubeInput[]) {
+  const usableEntries = entries.filter((entry) => entry.content.trim().length > 0);
+  if (usableEntries.length === 0) {
+    throw new Error('Aucune donnée Aube fournie pour générer un reflet.');
+  }
+
+  const formatted = usableEntries
+    .map((entry) => `- ${entry.promptKey} : ${entry.content.trim()}`)
+    .join('\n');
+
+  const prompt = `Tu es Luna, guide lunaire et coach émotionnelle. À partir de ces confidences :\n${formatted}\n
+Propose un bref reflet en français (3 à 4 phrases maximum). Ton style doit être doux, poétique mais concret :\n- Identifie un mouvement intérieur positif à encourager\n- Nomme une tension à apaiser avec bienveillance\n- Suggère un micro-rituel ou une intention pour la journée\n- Termine par une image lunaire ou une métaphore légère.\n
+Évite les formulations culpabilisantes, n’utilise pas de listes et tutoie l’utilisateur.`;
+
+  const response = await callWithFallback(prompt);
+  return response.trim();
 }
 
 export async function analyzeAssessmentResults(payload: AssessmentPayload) {
@@ -513,6 +605,23 @@ export async function generateResume(payload: ResumeGenerationPayload) {
     }
   }
 
+  if (payload.context?.element) {
+    contextBlocks.push(`Element énergétique Luna: ${payload.context.element}`);
+  }
+
+  if (payload.context?.riseStats) {
+    const parts = [] as string[];
+    if (typeof payload.context.riseStats.questsCompleted === 'number') {
+      parts.push(`Quêtes Rise complétées: ${payload.context.riseStats.questsCompleted}`);
+    }
+    if (typeof payload.context.riseStats.victoriesLogged === 'number') {
+      parts.push(`Victoires consignées: ${payload.context.riseStats.victoriesLogged}`);
+    }
+    if (parts.length) {
+      contextBlocks.push(parts.join(' | '));
+    }
+  }
+
   const contextSummary = contextBlocks.length > 0 ? contextBlocks.join('\n') : 'No additional Phoenix context provided.';
 
   const toneMap: Record<NonNullable<ResumeGenerationPayload['tone']>, string> = {
@@ -565,8 +674,11 @@ export async function generateResume(payload: ResumeGenerationPayload) {
   return fallback;
 }
 
-export async function getInterviewPracticeSet(payload: { role: string; focus: 'behavioral' | 'strategic' | 'technical' }) {
-  const cacheKey = hashCacheKey({ type: 'interview_set', payload });
+export async function getInterviewPracticeSet(
+  payload: { role: string; focus: 'behavioral' | 'strategic' | 'technical' },
+  options?: { userId?: string },
+) {
+  const cacheKey = hashCacheKey({ type: 'interview_set', payload, userId: options?.userId ?? null });
   const cached = await getCachedResponse<{ questions: InterviewQuestion[] }>(cacheKey);
   if (cached) return cached.questions;
 
@@ -575,7 +687,19 @@ export async function getInterviewPracticeSet(payload: { role: string; focus: 'b
     strategic: 'stratégique',
     technical: 'technique',
   };
-  const prompt = `Génère six questions d’entretien pour un rôle ${payload.role} avec un focus ${focusLabels[payload.focus]}. Réponds en JSON avec la clé "questions" contenant des objets { question, competency, guidance }. Assure-toi que les questions sont adaptées au marché français.`;
+  let memoryContext = '';
+  if (options?.userId) {
+    const memories = await getRecentEmotionalMemories({
+      userId: options.userId,
+      limit: 3,
+      sourceTypes: [EmbeddingSourceType.RISE_SESSION, EmbeddingSourceType.JOURNAL_ENTRY, EmbeddingSourceType.LETTER_DRAFT],
+    });
+    if (memories.length > 0) {
+      memoryContext = `Contexte récent de la personne :\n${memories.map((line) => `- ${line}`).join('\n')}\n\n`;
+    }
+  }
+
+  const prompt = `${memoryContext}Génère six questions d’entretien pour un rôle ${payload.role} avec un focus ${focusLabels[payload.focus]}. Réponds en JSON avec la clé "questions" contenant des objets { question, competency, guidance }. Assure-toi que les questions sont adaptées au marché français.`;
   const response = await callWithFallback(prompt);
 
   try {

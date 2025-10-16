@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { ArrowRight, Compass, FileText, Sparkles, MessageCircle } from 'lucide-react';
-import type { SubscriptionPlan } from '@prisma/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlanCard } from '@/components/pricing/plan-card';
+import { ENERGY_PACKS } from '@/config/energy';
 
 const modules = [
   {
@@ -38,10 +38,6 @@ const modules = [
     accent: 'from-blue-500/40 to-blue-400/20',
   },
 ];
-
-const PLAN_DISCOVERY: SubscriptionPlan = 'DISCOVERY';
-const PLAN_ESSENTIAL: SubscriptionPlan = 'ESSENTIAL';
-const PLAN_PRO: SubscriptionPlan = 'PRO';
 
 export default function HomePage() {
   return (
@@ -126,7 +122,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="grid gap-4 rounded-3xl border border-white/10 bg-white/5 p-8 md:grid-cols-3">
+      <section className="grid gap-4 rounded-3xl border border-white/10 bg-white/5 px-6 py-8 md:grid-cols-3 md:px-8">
         {[
           {
             title: 'Analyse guidée',
@@ -155,53 +151,18 @@ export default function HomePage() {
       <section className="rounded-3xl border border-white/10 bg-white/5 p-8">
         <div className="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-wide text-emerald-200">Plans mensuels</p>
-            <h2 className="text-3xl font-semibold text-white">Démarrez gratuitement, évoluez selon vos besoins</h2>
+            <p className="text-xs uppercase tracking-wide text-emerald-200">Packs énergie</p>
+            <h2 className="text-3xl font-semibold text-white">Rechargez Luna quand vous en avez besoin</h2>
             <p className="text-sm text-white/60">
-              Accès Découverte offert : 1 analyse express, un CV d’essai, 3 échanges avec Luna. Passez à Essentiel ou Pro pour débloquer les parcours complets.
+              Café, Petit-déj, Repas ou Buffet : choisissez la formule qui soutient votre cadence de préparation. Aucune reconduction automatique,
+              sauf pour le buffet à volonté.
             </p>
           </div>
         </div>
         <div className="grid gap-6 md:grid-cols-3">
-          <PlanCard
-            plan={PLAN_DISCOVERY}
-            title="Découverte"
-            price="Gratuit"
-            description="Testez Aube, générez un premier CV et dialoguez avec Luna sans engagement."
-            perks={[
-              '1 analyse Aube Express',
-              '1 génération de CV (export Markdown)',
-              '3 interactions Rise/Luna',
-            ]}
-            ctaLabel="Activer mon accès"
-          />
-          <PlanCard
-            plan={PLAN_ESSENTIAL}
-            title="Essentiel"
-            price="19,90 €/mois"
-            description="Pour structurer ses candidatures et garder une cadence régulière."
-            perks={[
-              'Aube Express illimitée',
-              'CV & Lettres (5/mois)',
-              '20 interactions Rise/Luna par mois',
-              'Exports Docx & Markdown',
-            ]}
-            ctaLabel="Choisir Essentiel"
-          />
-          <PlanCard
-            plan={PLAN_PRO}
-            title="Pro"
-            price="34,90 €/mois"
-            description="Pour orchestrer une transition stratégique et se préparer aux entretiens exigeants."
-            perks={[
-              'Aube Complete illimitée',
-              'Exports premium (PDF, Notion, ATS)',
-              'Rise & Luna illimités',
-              'Support prioritaire + webinaire mensuel',
-            ]}
-            highlight
-            ctaLabel="Choisir Pro"
-          />
+          {ENERGY_PACKS.map((pack) => (
+            <PlanCard key={pack.id} pack={pack} />
+          ))}
         </div>
       </section>
 

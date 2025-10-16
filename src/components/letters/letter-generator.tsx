@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link'; // Importation ajoutée
 import { useFieldArray, useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -15,6 +16,7 @@ import {
   RefreshCw,
   Sparkles,
   X,
+  Zap, // Importation ajoutée
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -25,6 +27,8 @@ import { cn } from '@/utils/cn';
 import { useToast } from '@/components/ui/toast';
 import { LunaAssistHint } from '@/components/luna/luna-assist-hint';
 import { logLunaInteraction } from '@/utils/luna-analytics';
+import { LETTER_RUNES, type LetterRune } from '@/config/letters';
+import { ENERGY_COSTS, LETTER_PUBLICATION_COST } from '@/config/energy';
 
 const contextSchema = z.object({
   resume: z
@@ -50,6 +54,30 @@ const contextSchema = z.object({
         title: z.string().nullable(),
         alignScore: z.number().nullable(),
         updatedAt: z.string(),
+        mirror: z
+          .object({
+            text: z.string(),
+            keywords: z.array(z.string()),
+            emotions: z.array(z.string()),
+            energyPulse: z.string().nullable(),
+            rune: z
+              .object({
+                id: z.string(),
+                label: z.string(),
+                confidence: z.number().nullable(),
+              })
+              .nullable(),
+          })
+          .nullable(),
+        publication: z
+          .object({
+            id: z.string(),
+            status: z.enum(['PENDING', 'APPROVED', 'REJECTED']),
+            moderatedAt: z.string().nullable(),
+            moderatorNote: z.string().nullable(),
+            publishedAt: z.string().nullable(),
+          })
+          .nullable(),
       }),
     )
     .optional(),
@@ -87,6 +115,7 @@ type FormValues = {
 type NotesPayload = {
   draftId: string;
   content: string;
+  mirror?: MirrorPersistPayload | null;
 };
 
 type StepId = 'brief' | 'positioning' | 'arguments' | 'synthesis';
@@ -96,6 +125,38 @@ type StepDefinition = {
   title: string;
   description: string;
   isComplete: boolean;
+};
+
+type MirrorState = {
+  mirror: string;
+  keywords: string[];
+  emotionalSpectrum: string[];
+  energyPulse: string | null;
+  rune: {
+    data: LetterRune;
+    confidence: number;
+    matchedKeywords: string[];
+  } | null;
+};
+
+type MirrorPersistPayload = {
+  mirrorText: string;
+  keywords: string[];
+  emotions: string[];
+  energyPulse: string | null;
+  rune: { id: string; confidence: number } | null;
+};
+
+const PUBLICATION_STATUS_LABEL: Record<'PENDING' | 'APPROVED' | 'REJECTED', string> = {
+  PENDING: 'En modération',
+  APPROVED: 'Publié',
+  REJECTED: 'Rejetée',
+};
+
+const PUBLICATION_STATUS_CLASS: Record<'PENDING' | 'APPROVED' | 'REJECTED', string> = {
+  PENDING: 'border-amber-400/40 bg-amber-500/10 text-amber-100',
+  APPROVED: 'border-emerald-400/40 bg-emerald-500/10 text-emerald-100',
+  REJECTED: 'border-rose-400/40 bg-rose-500/10 text-rose-100',
 };
 
 const toneOptions = [
@@ -125,6 +186,16 @@ export function LetterGenerator() {
   const [openStep, setOpenStep] = useState<StepId>('brief');
   const [pdfFallbackOpen, setPdfFallbackOpen] = useState(false);
   const [pdfErrorMessage, setPdfErrorMessage] = useState<string | null>(null);
+  const [mirrorState, setMirrorState] = useState<MirrorState | null>(null);
+  const [mirrorLoading, setMirrorLoading] = useState(false);
+  const [mirrorError, setMirrorError] = useState<string | null>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [publishDraft, setPublishDraft] = useState<(LettersContext['letterDrafts'][number] & { index?: number }) | null>(null);
+  const [publishExcerpt, setPublishExcerpt] = useState('');
+  const [publishAnonymous, setPublishAnonymous] = useState(true);
+  const [publishLoading, setPublishLoading] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
+  const [showEnergyModal, setShowEnergyModal] = useState(false); // État pour la modale d'énergie
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema) as Resolver<FormValues>,
@@ -177,6 +248,15 @@ export function LetterGenerator() {
   useEffect(() => {
     void refreshContext();
   }, [refreshContext]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 320);
+    };
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const matches = useMemo(() => context?.matches ?? [], [context?.matches]);
   const letterDrafts = useMemo(() => context?.letterDrafts ?? [], [context?.letterDrafts]);
@@ -296,13 +376,149 @@ export function LetterGenerator() {
     }
   }
 
+  function applyKeywordAsHighlight(value: string) {
+    if (!value) return;
+    addHighlightSuggestion(value);
+    showToast({
+      title: 'Argument ajouté',
+      description: `« ${value} » a été ajouté à tes preuves.`,
+      variant: 'success',
+    });
+  }
+
+  function applyKeywordAsAlignment(value: string) {
+    if (!value) return;
+    addAlignmentSuggestion(value);
+    showToast({
+      title: 'Hook ajouté',
+      description: `Accroche « ${value} » disponible pour ton alignement.`,
+      variant: 'success',
+    });
+  }
+
+  function buildMirrorPayload(state: MirrorState | null): MirrorPersistPayload | null {
+    if (!state) return null;
+    return {
+      mirrorText: state.mirror,
+      keywords: state.keywords,
+      emotions: state.emotionalSpectrum,
+      energyPulse: state.energyPulse ?? null,
+      rune: state.rune
+        ? {
+            id: state.rune.data.id,
+            confidence: state.rune.confidence,
+          }
+        : null,
+    };
+  }
+
+  async function handleMirrorRequest() {
+    const values = form.getValues();
+    if (!values.jobTitle?.trim() || !values.company?.trim()) {
+      showToast({
+        title: 'Brief incomplet',
+        description: 'Ajoute un poste et une entreprise avant de demander le miroir.',
+        variant: 'info',
+      });
+      return;
+    }
+    if (!values.resumeSummary || values.resumeSummary.trim().length < 20) {
+      showToast({
+        title: 'Résumé requis',
+        description: 'Ton miroir a besoin d’un résumé de parcours plus précis.',
+        variant: 'info',
+      });
+      return;
+    }
+    const highlights = (values.highlights ?? []).filter((item) => item && item.trim().length >= 3);
+    if (highlights.length === 0) {
+      showToast({
+        title: 'Arguments manquants',
+        description: 'Ajoute au moins un highlight avant de lancer le miroir.',
+        variant: 'info',
+      });
+      return;
+    }
+
+    setMirrorLoading(true);
+    setMirrorError(null);
+    try {
+      const response = await fetch('/api/letters/mirror', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobTitle: values.jobTitle,
+          company: values.company,
+          tone: values.tone,
+          language: values.language,
+          highlights,
+          resumeSummary: values.resumeSummary,
+        }),
+      });
+
+      if (response.status === 402) {
+        // Intercepte l'erreur d'énergie insuffisante
+        setShowEnergyModal(true);
+        return;
+      }
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.message ?? 'Miroir indisponible');
+      }
+
+      const payload = (await response.json()) as {
+        mirror: string;
+        keywords: string[];
+        emotionalSpectrum: string[];
+        energyPulse: string | null;
+        rune: {
+          id: LetterRune['id'];
+          label: string;
+          description: string;
+          confidence: number;
+          matchedKeywords: string[];
+        } | null;
+      };
+
+      const runeData = payload.rune ? LETTER_RUNES.find((item) => item.id === payload.rune?.id) ?? null : null;
+
+      setMirrorState({
+        mirror: payload.mirror,
+        keywords: payload.keywords,
+        emotionalSpectrum: payload.emotionalSpectrum,
+        energyPulse: payload.energyPulse,
+        rune:
+          payload.rune && runeData
+            ? {
+                data: runeData,
+                confidence: payload.rune.confidence,
+                matchedKeywords: payload.rune.matchedKeywords,
+              }
+            : null,
+      });
+
+      showToast({ title: 'Miroir Luna', description: 'Reflet empathique généré.', variant: 'info' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur miroir';
+      setMirrorError(message);
+      showToast({ title: 'Miroir indisponible', description: message, variant: 'error' });
+    } finally {
+      setMirrorLoading(false);
+    }
+  }
+
   async function handleGenerate(values: FormValues) {
     setLoading(true);
     try {
+      const mirrorPayload = buildMirrorPayload(mirrorState);
       const response = await fetch('/api/letters', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
+        body: JSON.stringify({
+          ...values,
+          mirror: mirrorPayload ?? undefined,
+        }),
       });
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
@@ -339,7 +555,12 @@ export function LetterGenerator() {
     }
     setSaveLoading(true);
     try {
-      const payload: NotesPayload = { draftId: letterDraftId, content: letterDraft.trim() };
+      const mirrorPayload = buildMirrorPayload(mirrorState);
+      const payload: NotesPayload & { mirror?: MirrorPersistPayload | null } = {
+        draftId: letterDraftId,
+        content: letterDraft.trim(),
+        mirror: mirrorPayload,
+      };
       const response = await fetch('/api/letters', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -369,7 +590,15 @@ export function LetterGenerator() {
       const data = await response.json();
       if (!data?.draft) throw new Error('Brouillon introuvable');
       type DraftInput = Partial<FormValues> & { highlights?: string[]; alignmentHooks?: string[] };
-      const draft = data.draft as { content: { letterMarkdown?: string; input?: DraftInput } };
+      const draft = data.draft as {
+        content: { letterMarkdown?: string; input?: DraftInput };
+        mirrorText?: string | null;
+        mirrorKeywords?: string[] | null;
+        mirrorEmotions?: string[] | null;
+        mirrorEnergyPulse?: string | null;
+        runeId?: string | null;
+        runeConfidence?: number | null;
+      };
       const content = draft.content ?? {};
       const input = content.input ?? {};
       form.reset({
@@ -389,6 +618,25 @@ export function LetterGenerator() {
       setLetterDraft(markdown);
       setLetterDraftId(id);
       setEditingMarkdown(false);
+      const runeData = draft.runeId ? LETTER_RUNES.find((item) => item.id === draft.runeId) ?? null : null;
+      setMirrorState(
+        draft.mirrorText
+          ? {
+              mirror: draft.mirrorText,
+              keywords: draft.mirrorKeywords ?? [],
+              emotionalSpectrum: draft.mirrorEmotions ?? [],
+              energyPulse: draft.mirrorEnergyPulse ?? null,
+              rune:
+                draft.runeId && runeData
+                  ? {
+                      data: runeData,
+                      confidence: draft.runeConfidence ?? 0.6,
+                      matchedKeywords: draft.mirrorKeywords ?? [],
+                    }
+                  : null,
+            }
+          : null,
+      );
       showToast({
         title: 'Brouillon chargé',
         description: 'Ajustez le contenu ou exportez directement.',
@@ -452,12 +700,96 @@ export function LetterGenerator() {
     setLetterDraft('');
     setLetterDraftId(null);
     setEditingMarkdown(false);
+    setMirrorState(null);
+    setMirrorError(null);
+    setMirrorLoading(false);
     showToast({ title: 'Formulaire réinitialisé', variant: 'info' });
   }
 
   function closePdfFallback() {
     setPdfFallbackOpen(false);
     setPdfErrorMessage(null);
+  }
+
+  function openPublishDialog(draft: LettersContext['letterDrafts'][number]) {
+    if (!draft.mirror) {
+      showToast({
+        title: 'Miroir requis',
+        description: 'Génère un miroir Luna avant de proposer ta lettre à la galerie.',
+        variant: 'info',
+      });
+      return;
+    }
+    if (draft.publication?.status === 'PENDING') {
+      showToast({
+        title: 'Déjà en revue',
+        description: 'Cette lettre est actuellement en modération. Tu seras notifié une fois validée.',
+        variant: 'info',
+      });
+      return;
+    }
+    if (draft.publication?.status === 'APPROVED') {
+      showToast({
+        title: 'Lettre publiée',
+        description: 'Cette lettre est déjà visible dans la galerie.',
+        variant: 'success',
+      });
+      return;
+    }
+    setPublishDraft(draft);
+    const baseExcerpt = draft.mirror.text ?? '';
+    const trimmed = baseExcerpt.slice(0, 260);
+    setPublishExcerpt(trimmed);
+    setPublishAnonymous(true);
+    setPublishError(null);
+  }
+
+  function closePublishDialog() {
+    setPublishDraft(null);
+    setPublishExcerpt('');
+    setPublishLoading(false);
+    setPublishError(null);
+  }
+
+  async function handlePublishConfirm() {
+    if (!publishDraft) return;
+    if (!publishDraft.mirror) {
+      setPublishError('Le miroir Luna est requis pour cette lettre.');
+      return;
+    }
+    if (!publishExcerpt || publishExcerpt.trim().length < 40) {
+      setPublishError('Propose un extrait d’au moins 40 caractères.');
+      return;
+    }
+    setPublishLoading(true);
+    setPublishError(null);
+    try {
+      const response = await fetch('/api/letters/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          draftId: publishDraft.id,
+          excerpt: publishExcerpt.trim(),
+          anonymous: publishAnonymous,
+        }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.message ?? 'Publication indisponible');
+      }
+      showToast({
+        title: 'Lettre envoyée',
+        description: 'Ta lettre passe en revue avant apparition dans la galerie.',
+        variant: 'success',
+      });
+      closePublishDialog();
+      await refreshContext();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur lors de la publication';
+      setPublishError(message);
+    } finally {
+      setPublishLoading(false);
+    }
   }
 
   const previewMarkdown = editingMarkdown ? letterDraft : letter;
@@ -612,6 +944,72 @@ export function LetterGenerator() {
                 ))}
               </div>
             </div>
+
+            <div className="space-y-3">
+              <div className="flex flex-col gap-2 rounded-3xl border border-white/10 bg-slate-950/40 p-4 text-sm text-white/70">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs uppercase tracking-wide text-white/60">Miroir Luna</span>
+                  <Button type="button" variant="ghost" loading={mirrorLoading} onClick={() => void handleMirrorRequest()} className="text-xs">
+                    Recevoir le reflet
+                  </Button>
+                </div>
+                {mirrorState ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-white/80 leading-relaxed">{mirrorState.mirror}</p>
+                    {mirrorState.energyPulse && <p className="text-xs italic text-emerald-200">{mirrorState.energyPulse}</p>}
+                    <div className="flex flex-wrap gap-2">
+                      {mirrorState.keywords.map((keyword) => (
+                        <button
+                          key={keyword}
+                          type="button"
+                          onClick={() => applyKeywordAsHighlight(keyword)}
+                          className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-100 transition hover:bg-emerald-400/20"
+                        >
+                          {keyword}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-[11px] text-white/50">
+                      {mirrorState.emotionalSpectrum.map((emotion) => (
+                        <span key={emotion} className="rounded-full border border-white/10 bg-white/5 px-2 py-1">
+                          {emotion}
+                        </span>
+                      ))}
+                    </div>
+                    {mirrorState.rune && (
+                      <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-xs text-white/70">
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-white">Rune {mirrorState.rune.data.label}</p>
+                            <p className="mt-1 text-xs text-white/50">{mirrorState.rune.data.description}</p>
+                          </div>
+                          <Badge className="border-emerald-400/30 text-emerald-200">{Math.round(mirrorState.rune.confidence * 100)}%</Badge>
+                        </div>
+                        {mirrorState.rune.matchedKeywords.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {mirrorState.rune.matchedKeywords.map((kw) => (
+                              <button
+                                key={kw}
+                                type="button"
+                                onClick={() => applyKeywordAsAlignment(kw)}
+                                className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/60 transition hover:border-emerald-400/40 hover:text-white"
+                              >
+                                {kw}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-white/50">
+                    Luna peut t’offrir un reflet empathique pour inspirer la lettre. Poste, entreprise et au moins un highlight sont requis.
+                  </p>
+                )}
+                {mirrorError && <p className="text-xs text-rose-300">{mirrorError}</p>}
+              </div>
+            </div>
           </div>
         );
       case 'arguments':
@@ -685,8 +1083,45 @@ export function LetterGenerator() {
     }
   }
 
+  const scrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
   return (
-    <div className="space-y-8">
+    <>
+      {/* Modale pour l'énergie insuffisante */}
+      {showEnergyModal && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center bg-black/70 px-4 py-10">
+          <div className="relative w-full max-w-lg space-y-5 rounded-3xl border border-yellow-500/50 bg-slate-950 p-6 shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setShowEnergyModal(false)}
+              className="absolute right-4 top-4 rounded-full p-1 text-white/60 transition hover:bg-white/10 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <div className="space-y-2">
+              <p className="flex items-center gap-2 text-xs uppercase tracking-wide text-yellow-400/90">
+                <Zap className="h-4 w-4" /> Énergie insuffisante
+              </p>
+              <h3 className="text-lg font-semibold text-white">Il vous manque quelques points d'énergie pour continuer.</h3>
+              <p className="text-sm text-white/60">
+                Chaque action assistée par Luna consomme de l'énergie. Vous pouvez en obtenir plus via les packs ou en complétant des rituels.
+              </p>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2 text-sm">
+              <Button type="button" variant="ghost" onClick={() => setShowEnergyModal(false)}>
+                Plus tard
+              </Button>
+              <Button type="button" asChild>
+                <Link href="/energy">Recharger l'énergie</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-8">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-1.5">
           <h2 className="text-3xl font-semibold text-white">Letters — Studio de motivation</h2>
@@ -843,45 +1278,147 @@ export function LetterGenerator() {
               {letterDrafts.length > 0 && (
                 <div className="space-y-2 text-xs text-white/60">
                   <span className="text-sm font-semibold text-white">Brouillons récents</span>
-                  {letterDrafts.map((draft) => (
-                    <div key={draft.id} className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                      <div className="flex items-center justify-between text-white">
-                        <span>{draft.title ?? 'Lettre sans titre'}</span>
-                        {draft.alignScore !== null && <Badge className="border-emerald-400/40 text-emerald-200">Score {Math.round(draft.alignScore)}%</Badge>}
+                  {letterDrafts.map((draft) => {
+                    const status = draft.publication?.status ?? null;
+                    const statusLabel = status ? PUBLICATION_STATUS_LABEL[status] : null;
+                    const statusClasses = status ? PUBLICATION_STATUS_CLASS[status] : '';
+                    const isPublishDisabled = status === 'PENDING' || status === 'APPROVED';
+
+                    return (
+                      <div key={draft.id} className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                        <div className="flex flex-col gap-3 text-white">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex flex-col gap-1">
+                              <span>{draft.title ?? 'Lettre sans titre'}</span>
+                              {draft.mirror?.rune && (
+                                <span className="text-[11px] uppercase tracking-wide text-emerald-200/90">
+                                  Rune {draft.mirror.rune.label}
+                                </span>
+                              )}
+                              {statusLabel && (
+                                <Badge className={cn('w-fit text-[10px]', statusClasses)}>{statusLabel}</Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {draft.alignScore !== null && (
+                                <Badge className="border-emerald-400/40 text-emerald-200">Score {Math.round(draft.alignScore)}%</Badge>
+                              )}
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                className="text-xs"
+                                onClick={() => openPublishDialog(draft)}
+                                loading={publishLoading && publishDraft?.id === draft.id}
+                                disabled={isPublishDisabled}
+                              >
+                                {status === 'APPROVED'
+                                  ? 'Publié'
+                                  : status === 'PENDING'
+                                  ? 'En revue'
+                                  : 'Publier'}
+                              </Button>
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-white/60">{new Date(draft.updatedAt).toLocaleString()}</p>
+                        </div>
+                        {draft.mirror && (
+                          <p className="mt-2 text-[12px] leading-relaxed text-white/60">
+                            {draft.mirror.text.slice(0, 140)}
+                            {draft.mirror.text.length > 140 ? '…' : ''}
+                          </p>
+                        )}
+                        {draft.publication?.moderatorNote && draft.publication.status === 'REJECTED' && (
+                          <p className="mt-2 rounded-2xl border border-rose-400/30 bg-rose-500/10 p-3 text-[11px] text-rose-100">
+                            Note de Luna Ops&nbsp;: {draft.publication.moderatorNote}
+                          </p>
+                        )}
+                        <div className="mt-2 flex gap-2">
+                          <Button type="button" variant="secondary" className="text-xs" onClick={() => handleLoadDraft(draft.id)}>
+                            Charger ce brouillon
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="text-xs"
+                            onClick={() => {
+                              const prompt = `Tu es Luna. Relis le brouillon ${draft.title ?? 'sans titre'} (ID ${draft.id}) et propose deux axes d’amélioration.`;
+                              window.dispatchEvent(
+                                new CustomEvent('phoenix:luna-open', { detail: { prompt, source: 'letters_saved_draft' } }),
+                              );
+                              showToast({
+                                title: 'Luna ouvre le brouillon',
+                                description: 'Retrouvez la conversation pour affiner la lettre.',
+                                variant: 'info',
+                              });
+                              logLunaInteraction('letters_saved_draft_luna', { draftId: draft.id });
+                            }}
+                          >
+                            Débriefer avec Luna
+                          </Button>
+                        </div>
                       </div>
-                      <p className="text-[11px] text-white/60">{new Date(draft.updatedAt).toLocaleString()}</p>
-                      <div className="mt-2 flex gap-2">
-                        <Button type="button" variant="secondary" className="text-xs" onClick={() => handleLoadDraft(draft.id)}>
-                          Charger ce brouillon
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className="text-xs"
-                          onClick={() => {
-                            const prompt = `Tu es Luna. Relis le brouillon ${draft.title ?? 'sans titre'} (ID ${draft.id}) et propose deux axes d’amélioration.`;
-                            window.dispatchEvent(
-                              new CustomEvent('phoenix:luna-open', { detail: { prompt, source: 'letters_saved_draft' } }),
-                            );
-                            showToast({
-                              title: 'Luna ouvre le brouillon',
-                              description: 'Retrouvez la conversation pour affiner la lettre.',
-                              variant: 'info',
-                            });
-                            logLunaInteraction('letters_saved_draft_luna', { draftId: draft.id });
-                          }}
-                        >
-                          Débriefer avec Luna
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
           </Card>
         </div>
       </div>
+
+      {publishDraft && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center bg-black/70 px-4 py-10">
+          <div className="relative w-full max-w-xl space-y-5 rounded-3xl border border-white/10 bg-slate-950 p-6 shadow-2xl">
+            <button
+              type="button"
+              onClick={closePublishDialog}
+              className="absolute right-4 top-4 rounded-full p-1 text-white/60 transition hover:bg-white/10 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <div className="space-y-2">
+              <p className="text-xs uppercase tracking-wide text-emerald-200/90">Publier dans la constellation</p>
+              <h3 className="text-lg font-semibold text-white">{publishDraft.title ?? 'Lettre sans titre'}</h3>
+              <p className="text-sm text-white/60">
+                Cette action consomme {LETTER_PUBLICATION_COST} points d’énergie. La lettre passe ensuite en modération avant d’apparaître dans la galerie.
+              </p>
+              {publishDraft.mirror?.rune && (
+                <p className="text-xs text-emerald-200/80">
+                  Rune dominante : {publishDraft.mirror.rune.label}
+                </p>
+              )}
+            </div>
+            <div className="space-y-3">
+              <label className="text-xs font-semibold uppercase tracking-wide text-white/60">Extrait partagé</label>
+              <Textarea
+                rows={4}
+                value={publishExcerpt}
+                onChange={(event) => setPublishExcerpt(event.target.value)}
+                className="min-h-[120px]"
+              />
+              <div className="flex items-center justify-between text-xs text-white/50">
+                <span>{publishExcerpt.trim().length} caractères</span>
+                <button
+                  type="button"
+                  onClick={() => setPublishAnonymous((prev) => !prev)}
+                  className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] text-white/70 transition hover:border-emerald-400/40 hover:text-white"
+                >
+                  {publishAnonymous ? 'Anonyme activé' : 'Afficher mon prénom'}
+                </button>
+              </div>
+            </div>
+            {publishError && <p className="text-xs text-rose-300">{publishError}</p>}
+            <div className="flex flex-wrap justify-end gap-2 text-sm">
+              <Button type="button" variant="ghost" onClick={closePublishDialog}>
+                Annuler
+              </Button>
+              <Button type="button" onClick={() => void handlePublishConfirm()} loading={publishLoading}>
+                Publier la lettre
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {pdfFallbackOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-4 py-10">
@@ -931,7 +1468,19 @@ export function LetterGenerator() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+      {showScrollTop && (
+        <Button
+          type="button"
+          variant="secondary"
+          className="fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] left-4 z-[55] px-3 py-1.5 text-xs shadow-lg shadow-slate-950/20 md:hidden"
+          onClick={scrollToTop}
+          aria-label="Revenir en haut de la page"
+        >
+          Remonter
+        </Button>
+      )}
+    </>
   );
 }
 

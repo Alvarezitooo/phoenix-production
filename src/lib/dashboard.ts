@@ -40,9 +40,10 @@ type DashboardConversation = {
 
 type DashboardUserInfo = {
   name: string | null;
-  subscriptionPlan: string | null;
-  subscriptionStatus: string | null;
-  currentPeriodEnd: string | null;
+  energyBalance: number;
+  streakDays: number;
+  lastEnergyActionAt: string | null;
+  lastBonusAt: string | null;
   preferredCareerMatchId: string | null;
 };
 
@@ -55,6 +56,7 @@ export type DashboardSnapshot = {
   riseSessions: DashboardRiseSession[];
   assessments: DashboardAssessment[];
   conversations: DashboardConversation[];
+  auroraCompleted: boolean;
   errors: string[];
 };
 
@@ -97,16 +99,24 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
     }
   }
 
-  const [user, resumeDraft, letterDrafts, matches, riseSessions, assessments, conversations] = await Promise.all([
+  const [user, wallet, resumeDraft, letterDrafts, matches, riseSessions, assessments, conversations, auroraSession] = await Promise.all([
     guard('user', () =>
       prisma.user.findUnique({
         where: { id: userId },
         select: {
           name: true,
-          subscriptionPlan: true,
-          subscriptionStatus: true,
-          currentPeriodEnd: true,
           preferredCareerMatchId: true,
+        },
+      }),
+    ),
+    guard('energy', () =>
+      prisma.energyWallet.findUnique({
+        where: { userId },
+        select: {
+          balance: true,
+          currentStreakDays: true,
+          lastEnergyActionAt: true,
+          lastBonusAwardedAt: true,
         },
       }),
     ),
@@ -187,6 +197,18 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
         },
       }),
     ),
+    guard('auroraSession', () =>
+      prisma.auroraSession.findFirst({
+        where: {
+          userId,
+          completedAt: { not: null },
+        },
+        select: {
+          id: true,
+          completedAt: true,
+        },
+      }),
+    ),
   ]);
 
   const resumeSummary = resumeDraft ? extractResumeSummary(resumeDraft.content) : null;
@@ -194,9 +216,10 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
   const userInfo: DashboardUserInfo | null = user
     ? {
         name: user.name,
-        subscriptionPlan: user.subscriptionPlan,
-        subscriptionStatus: user.subscriptionStatus,
-        currentPeriodEnd: user.currentPeriodEnd ? user.currentPeriodEnd.toISOString() : null,
+        energyBalance: wallet?.balance ?? 0,
+        streakDays: wallet?.currentStreakDays ?? 0,
+        lastEnergyActionAt: wallet?.lastEnergyActionAt?.toISOString() ?? null,
+        lastBonusAt: wallet?.lastBonusAwardedAt?.toISOString() ?? null,
         preferredCareerMatchId: user.preferredCareerMatchId ?? null,
       }
     : null;
@@ -263,6 +286,7 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
     riseSessions: riseSessionsMapped,
     assessments: assessmentsMapped,
     conversations: conversationsMapped,
+    auroraCompleted: Boolean(auroraSession),
     errors,
   };
 }

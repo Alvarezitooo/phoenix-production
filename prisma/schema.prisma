@@ -1,39 +1,58 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // extensions = [pg_vector]  // Disabled temporarily - install manually on Railway if needed
 }
 
 model User {
-  id                   String             @id @default(cuid())
-  email                String             @unique
-  name                 String?
-  hashedPassword       String?
-  image                String?
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  currentPeriodEnd     DateTime?
-  stripeCustomerId     String?
-  stripeSubscriptionId String?
-  subscriptionPlan     SubscriptionPlan?  @default(DISCOVERY)
-  subscriptionStatus   SubscriptionStatus @default(INACTIVE)
-  currentPeriodStart   DateTime?
-  accounts             Account[]
-  analyticsEvents      AnalyticsEvent[]
-  assessments          Assessment[]
-  careerMatches        CareerMatch[]
-  conversations        Conversation[]
-  letterDrafts         LetterDraft[]
-  notifications        Notification[]
-  resumeDrafts         ResumeDraft[]
-  riseSessions         RiseSession[]
-  sessions             Session[]
+  id                     String              @id @default(cuid())
+  email                  String              @unique
+  name                   String?
+  hashedPassword         String?
+  image                  String?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  currentPeriodEnd       DateTime?
+  stripeCustomerId       String?
+  stripeSubscriptionId   String?
+  subscriptionPlan       SubscriptionPlan?   @default(DISCOVERY)
+  subscriptionStatus     SubscriptionStatus  @default(INACTIVE)
+  currentPeriodStart     DateTime?
   preferredCareerMatchId String?
-  betaCoupons          BetaCoupon[]
-  feedbacks            Feedback[]
+  accounts               Account[]
+  analyticsEvents        AnalyticsEvent[]
+  assessments            Assessment[]
+  aubeProfile            AubeProfile?
+  betaCoupons            BetaCoupon[]
+  careerMatches          CareerMatch[]
+  conversations          Conversation[]
+  energyTransactions     EnergyTransaction[]
+  energyWallet           EnergyWallet?
+  feedbacks              Feedback[]
+  journalEntries         JournalEntry[]
+  letterDrafts           LetterDraft[]
+  letterPublications     LetterPublication[]       @relation("LetterPublicationAuthor")
+  moderatedPublications  LetterPublication[]       @relation("LetterPublicationModerator")
+  energyPackPurchases    EnergyPackPurchase[]
+  riseQuestProgress      RiseQuestProgress[]
+  riseVictories          RiseVictory[]
+  badges                 UserBadge[]
+  constellationEvents    ConstellationEvent[]
+  referralLinks          ReferralLink[]
+  referralEvents         ReferralEvent[]       @relation("UserReferralEvents")
+  referralsReceived      ReferralEvent[]       @relation("UserReferred")
+  workerRuns             WorkerRun[]
+  notifications          Notification[]
+  resumeDrafts           ResumeDraft[]
+  riseSessions           RiseSession[]
+  sessions               Session[]
+  emotionalEmbeddings    EmotionalEmbedding[]
+  auroraSessions         AuroraSession[]
 }
 
 model Assessment {
@@ -109,6 +128,10 @@ model ResumeDraft {
   content    Json
   context    Json?
   alignScore Float?
+  element    String?
+  theme      String?
+  shareSlug  String?          @unique
+  isShared   Boolean          @default(false)
   createdAt  DateTime         @default(now())
   updatedAt  DateTime         @updatedAt
   user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -116,18 +139,27 @@ model ResumeDraft {
 }
 
 model LetterDraft {
-  id         String           @id @default(cuid())
-  userId     String
-  title      String?
-  template   String?
-  tone       String?
-  language   String?
-  content    Json
-  alignScore Float?
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
-  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  feedback   LetterFeedback[]
+  id                String             @id @default(cuid())
+  userId            String
+  title             String?
+  template          String?
+  tone              String?
+  language          String?
+  content           Json
+  alignScore        Float?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  mirrorText        String?
+  mirrorKeywords    String[]
+  mirrorEmotions    String[]
+  mirrorEnergyPulse String?
+  runeId            String?
+  runeConfidence    Float?
+  reminderSentAt    DateTime?
+  reminderCount     Int      @default(0)
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feedback          LetterFeedback[]
+  publication       LetterPublication?
 }
 
 model LetterFeedback {
@@ -137,6 +169,33 @@ model LetterFeedback {
   message   String
   createdAt DateTime    @default(now())
   draft     LetterDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+}
+
+model LetterPublication {
+  id          String                  @id @default(dbgenerated("gen_random_uuid()"))
+  draftId     String                  @unique
+  userId      String
+  status      LetterPublicationStatus @default(PENDING)
+  isAnonymous Boolean                 @default(true)
+  excerpt     String?
+  runeId      String?
+  publishedAt DateTime?
+  likesCount  Int                     @default(0)
+  flagsCount  Int                     @default(0)
+  energySpent Int                     @default(0)
+  featured    Boolean                 @default(false)
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @default(now()) @updatedAt
+  moderatedById String?
+  moderatedAt   DateTime?
+  moderationNote String?
+  draft         LetterDraft             @relation(fields: [draftId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user          User                    @relation("LetterPublicationAuthor", fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  moderatedBy   User?                   @relation("LetterPublicationModerator", fields: [moderatedById], references: [id], onUpdate: NoAction, onDelete: SetNull)
+
+  @@index([status])
+  @@index([userId])
+  @@index([moderatedAt])
 }
 
 model RiseSession {
@@ -150,30 +209,123 @@ model RiseSession {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model RiseQuestProgress {
+  id            String   @id @default(cuid())
+  userId        String
+  questId       String
+  completedAt   DateTime @default(now())
+  energyAwarded Int      @default(0)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questId])
+  @@index([questId])
+}
+
+model RiseVictory {
+  id             String   @id @default(cuid())
+  userId         String
+  note           String
+  energyDeclared Int      @default(0)
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model UserBadge {
+  id        String   @id @default(cuid())
+  userId    String
+  badgeId   String
+  awardedAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+}
+
+model ConstellationEvent {
+  id        String                 @id @default(cuid())
+  userId    String
+  type      ConstellationEventType
+  payload   Json?
+  createdAt DateTime               @default(now())
+  user      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([type, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+enum ConstellationEventType {
+  PORTAL_AUBE_COMPLETED
+  LETTER_PUBLISHED
+  RISE_BADGE_AWARDED
+  PACK_PURCHASED
+  REFERRAL_BONUS
+  RISE_VICTORY_LOGGED
+  RISE_QUEST_COMPLETED
+}
+
+model ReferralLink {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  userId      String
+  bonusEnergy Int      @default(5)
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events      ReferralEvent[]
+}
+
+model ReferralEvent {
+  id             String   @id @default(cuid())
+  referralLinkId String
+  referrerId     String
+  referredUserId String?
+  bonusGranted   Int      @default(0)
+  createdAt      DateTime @default(now())
+  referralLink   ReferralLink @relation(fields: [referralLinkId], references: [id], onDelete: Cascade)
+  referrer       User          @relation("UserReferralEvents", fields: [referrerId], references: [id], onDelete: Cascade)
+  referredUser   User?         @relation("UserReferred", fields: [referredUserId], references: [id], onDelete: SetNull)
+
+  @@index([referrerId])
+  @@index([referredUserId])
+}
+
+model WorkerRun {
+  id        String   @id @default(cuid())
+  worker    String
+  processed Int      @default(0)
+  errors    Int      @default(0)
+  context   Json?
+  createdAt DateTime @default(now())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([worker, createdAt(sort: Desc)])
+}
+
 model BetaCoupon {
-  id            String            @id @default(cuid())
-  code          String            @unique
-  plan          SubscriptionPlan
-  durationDays  Int               @default(30)
-  expiresAt     DateTime?
-  redeemedAt    DateTime?
-  redeemedById  String?
-  redeemedBy    User?             @relation(fields: [redeemedById], references: [id], onDelete: SetNull)
-  notes         String?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  id           String           @id @default(cuid())
+  code         String           @unique
+  plan         SubscriptionPlan
+  durationDays Int              @default(30)
+  expiresAt    DateTime?
+  redeemedAt   DateTime?
+  redeemedById String?
+  notes        String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  redeemedBy   User?            @relation(fields: [redeemedById], references: [id])
 }
 
 model Feedback {
   id        String   @id @default(cuid())
   userId    String?
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   module    String
   category  String?
   message   String
   context   Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  user      User?    @relation(fields: [userId], references: [id])
 }
 
 model ResumeFeedback {
@@ -192,6 +344,75 @@ model AiCache {
   expiresAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+}
+
+model EnergyWallet {
+  userId             String    @id
+  balance            Int       @default(0)
+  lifetimeEarned     Int       @default(0)
+  lifetimeSpent      Int       @default(0)
+  streakCount        Int       @default(0)
+  currentStreakDays  Int       @default(0)
+  lastEnergyActionAt DateTime?
+  lastBonusAwardedAt DateTime?
+  lastRitualReminderAt DateTime?
+  lastStreakReminderAt DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EnergyTransaction {
+  id           String                @id @default(cuid())
+  userId       String
+  type         EnergyTransactionType
+  amount       Int
+  balanceAfter Int
+  reference    String?
+  metadata     Json?
+  createdAt    DateTime              @default(now())
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EnergyPackPurchase {
+  id                      String                    @id @default(cuid())
+  userId                  String
+  packId                  String
+  stripeCheckoutSessionId String                    @unique
+  stripePaymentIntentId   String?
+  status                  EnergyPackPurchaseStatus  @default(PENDING)
+  energyAmount            Int?
+  energyAmountLabel       String?
+  amountInCents           Int?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+  user                    User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([stripeCheckoutSessionId])
+}
+
+model AubeProfile {
+  userId      String   @id
+  forces      String[]
+  shadow      String
+  element     String
+  clarityNote String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model JournalEntry {
+  id        String        @id @default(cuid())
+  userId    String
+  portal    JournalPortal
+  promptKey String
+  content   String
+  metadata  Json?
+  createdAt DateTime      @default(now())
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model VerificationToken {
@@ -228,6 +449,28 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum EnergyTransactionType {
+  PURCHASE
+  SPEND
+  BONUS
+  REFUND
+  ADJUSTMENT
+}
+
+enum EnergyPackPurchaseStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+enum JournalPortal {
+  AUBE
+  LETTER
+  RISE
+  CV
+  RITUAL
 }
 
 enum AssessmentMode {
@@ -270,4 +513,83 @@ enum AnalyticsEventType {
   PLAN_UPGRADE_VIEW
   PLAN_UPGRADE_CLICK
   PLAN_CONVERTED
+  ENERGY_PACK_VIEW
+  ENERGY_PACK_CLICK
+  AUBE_PORTAL_VIEWED
+  AUBE_PORTAL_COMPLETED
+  AUBE_REFLECTION_REQUESTED
+  RITUAL_COMPLETED
+  ENERGY_BONUS_STREAK
+  LETTER_RUNE_UNLOCKED
+  PACK_PURCHASED
+  ENERGY_SPENT
+  LETTER_MIRROR_REQUESTED
+  LETTER_MIRROR_FAILED
+  LETTER_PUBLISHED
+  LETTER_MODERATION_UPDATED
+  LETTER_REMINDER_SENT
+  RITUAL_REMINDER_SENT
+  LETTER_GALLERY_VIEW
+  RISE_MISSION_COMPLETED
+  RISE_FEEDBACK_REQUESTED
+  RISE_VICTORY_ADDED
+  RISE_PASSAGE_UNLOCKED
+  RISE_BADGE_VIEWED
+  RISE_QUEST_COMPLETED
+  RISE_VICTORY_LOGGED
+  RISE_BADGE_AWARDED
+  CV_GENERATED
+  REFERRAL_BONUS_GRANTED
+  AURORA_STARTED
+  AURORA_VOILE_COMPLETED
+  AURORA_ATELIER_COMPLETED
+  AURORA_DIALOGUE_COMPLETED
+  AURORA_COMPLETED
+  AURORA_PROFILE_GENERATED
+}
+
+enum LetterPublicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model EmotionalEmbedding {
+  id          String              @id @default(cuid())
+  userId      String
+  sourceType  EmbeddingSourceType
+  sourceId    String
+  content     String
+  vector      Unsupported("vector(768)")?
+  provider    String?
+  createdAt   DateTime            @default(now())
+
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([sourceType, sourceId])
+}
+
+enum EmbeddingSourceType {
+  LETTER_DRAFT
+  JOURNAL_ENTRY
+  FEEDBACK
+  RISE_SESSION
+}
+
+model AuroraSession {
+  id               String    @id @default(cuid())
+  userId           String
+  currentChamber   Int       @default(0)
+  dialogue         Json      @default("[]")
+  insights         Json?
+  emotionalProfile String?
+  completedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([completedAt])
 }

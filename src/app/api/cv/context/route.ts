@@ -25,7 +25,7 @@ export async function GET() {
   try {
     const userId = session.user.id;
 
-    const [latestComplete, latestQuick, matches, drafts, conversations] = await Promise.all([
+    const [latestComplete, latestQuick, matches, drafts, conversations, aubeProfile, riseProgress, riseVictories] = await Promise.all([
       prisma.assessment.findFirst({
         where: {
           userId,
@@ -65,6 +65,17 @@ export async function GET() {
         },
         orderBy: { updatedAt: 'desc' },
         take: 3,
+      }),
+      prisma.aubeProfile.findUnique({ where: { userId } }),
+      prisma.riseQuestProgress.findMany({
+        where: { userId },
+        orderBy: { completedAt: 'desc' },
+        take: 10,
+      }),
+      prisma.riseVictory.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
       }),
     ]);
 
@@ -124,6 +135,10 @@ export async function GET() {
       version: draft.version,
       alignScore: draft.alignScore,
       updatedAt: draft.updatedAt,
+       element: draft.element,
+       theme: draft.theme,
+       isShared: draft.isShared,
+       shareSlug: draft.shareSlug,
       feedback: draft.feedback.map((item) => ({
         id: item.id,
         section: item.section,
@@ -151,6 +166,18 @@ export async function GET() {
       resumeDrafts,
       lunaThreads,
       preferredMatchId,
+      aubeProfile: aubeProfile
+        ? {
+            element: aubeProfile.element,
+            forces: aubeProfile.forces,
+            shadow: aubeProfile.shadow,
+            clarityNote: aubeProfile.clarityNote,
+          }
+        : null,
+      riseStats: {
+        questsCompleted: riseProgress.length,
+        victoriesLogged: riseVictories.length,
+      },
     });
   } catch (error) {
     console.error('[CV_CONTEXT]', error);

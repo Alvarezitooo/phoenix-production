@@ -15,6 +15,7 @@ import { cn } from '@/utils/cn';
 import { useToast } from '@/components/ui/toast';
 import { LunaAssistHint } from '@/components/luna/luna-assist-hint';
 import { logLunaInteraction } from '@/utils/luna-analytics';
+import { CV_THEMES, type CvThemeKey, resolveCvTheme } from '@/config/cv';
 
 type ContextResponse = {
   assessment: {
@@ -42,8 +43,22 @@ type ContextResponse = {
     version: number;
     alignScore: number | null;
     updatedAt: string;
+    element?: string | null;
+    theme?: string | null;
+    isShared?: boolean;
+    shareSlug?: string | null;
     feedback: Array<{ id: string; section: string; message: string; createdAt: string }>;
   }>;
+  aubeProfile: {
+    element?: string | null;
+    forces?: string[];
+    shadow?: string | null;
+    clarityNote?: string | null;
+  } | null;
+  riseStats?: {
+    questsCompleted: number;
+    victoriesLogged: number;
+  };
 };
 
 type DraftDetails = {
@@ -68,6 +83,10 @@ type DraftDetails = {
     template: string;
     tone: string | null;
     language: string | null;
+    element?: string | null;
+    theme?: string | null;
+    shareSlug?: string | null;
+    isShared?: boolean;
   };
 };
 
@@ -87,6 +106,7 @@ const formSchema = z.object({
   skills: z.string().min(5),
   tone: z.enum(['impact', 'leadership', 'international', 'default']).default('impact'),
   language: z.enum(['fr', 'en']).default('fr'),
+  theme: z.enum(['FEU', 'EAU', 'TERRE', 'AIR', 'ETHER']).default('AIR'),
 });
 
 type FormValues = z.input<typeof formSchema>;
@@ -126,13 +146,18 @@ export function CvBuilder() {
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [resume, setResume] = useState('');
   const [insights, setInsights] = useState<Insights | null>(null);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [isEditingResume, setIsEditingResume] = useState(false);
   const [resumeDraft, setResumeDraft] = useState('');
   const [saveDraftLoading, setSaveDraftLoading] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [shareState, setShareState] = useState<{ isShared: boolean; shareUrl: string | null; shareSlug: string | null }>({
+    isShared: false,
+    shareUrl: null,
+    shareSlug: null,
+  });
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -144,14 +169,50 @@ export function CvBuilder() {
       skills: '',
       tone: 'impact',
       language: 'fr',
+      theme: 'AIR',
     },
   });
+
+  const themeSelection = form.watch('theme');
 
   const { fields, append, remove, replace } = useFieldArray({ control: form.control, name: 'experiences' });
 
   useEffect(() => {
     void refreshContext();
   }, []);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 360);
+    };
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    if (!draftId || !context) {
+      setShareState({ isShared: false, shareUrl: null, shareSlug: null });
+      return;
+    }
+    const draft = context.resumeDrafts.find((item) => item.id === draftId);
+    if (!draft) {
+      setShareState({ isShared: false, shareUrl: null, shareSlug: null });
+      return;
+    }
+    if (draft.theme) {
+      form.setValue('theme', draft.theme as CvThemeKey, { shouldDirty: false });
+    }
+    if (typeof window !== 'undefined' && draft.isShared && draft.shareSlug) {
+      setShareState({
+        isShared: true,
+        shareSlug: draft.shareSlug,
+        shareUrl: `${window.location.origin}/cv/share/${draft.shareSlug}`,
+      });
+    } else {
+      setShareState({ isShared: false, shareUrl: null, shareSlug: draft.shareSlug ?? null });
+    }
+  }, [draftId, context, form]);
 
   async function refreshContext() {
     setContextLoading(true);
@@ -161,8 +222,28 @@ export function CvBuilder() {
       if (!response.ok) throw new Error('Impossible de récupérer le contexte Phoenix');
       const data = (await response.json()) as ContextResponse;
       setContext(data);
+      if (data.aubeProfile?.element) {
+        const currentTheme = form.getValues('theme');
+        const defaultTheme = resolveCvTheme(data.aubeProfile.element);
+        if (!currentTheme || currentTheme === 'AIR') {
+          form.setValue('theme', defaultTheme, { shouldValidate: true });
+        }
+      }
       if (data.careerMatches.length > 0) {
         setSelectedMatchId((current) => current ?? data.careerMatches[0].id);
+      }
+      if (typeof window !== 'undefined' && data.resumeDrafts.length > 0) {
+        const latest = data.resumeDrafts[0];
+        if (latest.theme) {
+          form.setValue('theme', latest.theme as CvThemeKey, { shouldDirty: false });
+        }
+        if (latest.isShared && latest.shareSlug) {
+          setShareState({
+            isShared: true,
+            shareSlug: latest.shareSlug,
+            shareUrl: `${window.location.origin}/cv/share/${latest.shareSlug}`,
+          });
+        }
       }
     } catch (error) {
       console.error('[CV_CONTEXT]', error);
@@ -241,12 +322,68 @@ export function CvBuilder() {
     }
 
     ensureExperienceCount();
-    setStatusMessage('Champs pré-remplis avec vos données Phoenix. Ajustez avant de générer.');
+    showToast({
+      title: 'Préremplissage effectué',
+      description: 'Vos champs clés ont été remplis avec les données Phoenix. Ajustez avant génération.',
+      variant: 'info',
+      duration: 4500,
+    });
   }
+
+  const updateShare = useCallback(
+    async (share: boolean, themeOverride?: CvThemeKey) => {
+      if (!draftId) {
+        showToast({ title: 'Partage indisponible', description: 'Génère un CV et sauvegarde-le avant d’activer le partage.', variant: 'info' });
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/cv/drafts/${draftId}/share`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ share, theme: themeOverride ?? form.getValues('theme') }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          throw new Error(error.message ?? 'Impossible de mettre à jour le partage');
+        }
+
+        const data = await response.json();
+        if (share) {
+          const shareUrl = data.shareUrl ?? (typeof window !== 'undefined' && data.shareSlug ? `${window.location.origin}/cv/share/${data.shareSlug}` : null);
+          setShareState({ isShared: true, shareUrl, shareSlug: data.shareSlug ?? null });
+        } else {
+          setShareState({ isShared: false, shareUrl: null, shareSlug: null });
+        }
+        await refreshContext();
+      } catch (error) {
+        console.error('[CV_SHARE]', error);
+        showToast({
+          title: 'Partage CV',
+          description: error instanceof Error ? error.message : 'Erreur lors de la mise à jour du partage.',
+          variant: 'error',
+        });
+      }
+    },
+    [draftId, form, showToast, refreshContext],
+  );
+
+  const handleCopyShare = useCallback(() => {
+    if (!shareState.shareUrl) return;
+    if (typeof navigator === 'undefined') return;
+    navigator.clipboard
+      ?.writeText(shareState.shareUrl)
+      .then(() => {
+        showToast({ title: 'Lien copié', description: 'Le lien de ton CV est dans le presse-papier.', variant: 'success' });
+      })
+      .catch(() => {
+        showToast({ title: 'Copie impossible', description: 'Copie le lien manuellement.', variant: 'error' });
+      });
+  }, [shareState.shareUrl, showToast]);
 
   async function generateResume(values: FormValues) {
     setLoading(true);
-    setStatusMessage(null);
     try {
       const response = await fetch('/api/cv', {
         method: 'POST',
@@ -263,6 +400,7 @@ export function CvBuilder() {
           skills: values.skills.split(',').map((item) => item.trim()).filter(Boolean),
           tone: values.tone,
           language: values.language,
+          theme: themeSelection,
           context: {
             strengths: context?.assessment?.strengths,
             workPreferences: context?.assessment?.workPreferences,
@@ -280,6 +418,7 @@ export function CvBuilder() {
                 }
               : undefined,
             modules: { cvBuilder: true, letters: true, rise: true },
+            element: context?.aubeProfile?.element,
           },
         }),
       });
@@ -289,13 +428,16 @@ export function CvBuilder() {
         throw new Error(error.message ?? 'Impossible de générer le CV');
       }
 
-      const data = (await response.json()) as { resume: string; insights?: Insights; draftId?: string };
+      const data = (await response.json()) as { resume: string; insights?: Insights; draftId?: string; theme?: string };
       setResume(data.resume);
       setResumeDraft(data.resume);
       setInsights(data.insights ?? null);
       if (data.draftId) setDraftId(data.draftId);
+      if (data.theme) {
+        form.setValue('theme', data.theme as CvThemeKey, { shouldDirty: false });
+      }
       setIsEditingResume(false);
-      setStatusMessage('CV généré et sauvegardé. Vérifiez la checklist puis exportez.');
+      setShareState({ isShared: false, shareUrl: null, shareSlug: null });
       showToast({
         title: 'CV généré',
         description: 'Ouvrez Luna pour transformer ces éléments en pitch ou plan d’action.',
@@ -304,7 +446,11 @@ export function CvBuilder() {
       await refreshContext();
     } catch (error) {
       console.error('[CV_GENERATE]', error);
-      setStatusMessage(error instanceof Error ? error.message : 'Erreur interne');
+      showToast({
+        title: 'Erreur génération CV',
+        description: error instanceof Error ? error.message : 'Erreur interne',
+        variant: 'error',
+      });
     } finally {
       setLoading(false);
     }
@@ -314,7 +460,11 @@ export function CvBuilder() {
 
   async function handleExport() {
     if (!resume) {
-      setStatusMessage("Générez un CV avant de lancer un export PDF.");
+      showToast({
+        title: 'Export impossible',
+        description: 'Générez un CV avant de lancer un export PDF.',
+        variant: 'info',
+      });
       return;
     }
     setExportLoading(true);
@@ -337,7 +487,6 @@ export function CvBuilder() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      setStatusMessage('Export PDF généré avec succès.');
       showToast({
         title: 'Export PDF prêt',
         description: 'Luna peut t’aider à préparer la relecture ou ton pitch d’entretien.',
@@ -345,7 +494,11 @@ export function CvBuilder() {
       });
     } catch (error) {
       console.error('[CV_EXPORT]', error);
-      setStatusMessage(error instanceof Error ? error.message : "Une erreur est survenue lors de l'export.");
+      showToast({
+        title: 'Erreur export PDF',
+        description: error instanceof Error ? error.message : "Une erreur est survenue lors de l'export.",
+        variant: 'error',
+      });
     } finally {
       setExportLoading(false);
     }
@@ -368,6 +521,7 @@ export function CvBuilder() {
         skills: (input.skills ?? []).join(', '),
         tone: (input.tone as FormValues['tone']) ?? 'impact',
         language: (input.language as FormValues['language']) ?? 'fr',
+        theme: (details.theme as CvThemeKey) ?? resolveCvTheme(details.element ?? undefined),
       });
       ensureExperienceCount();
 
@@ -381,16 +535,37 @@ export function CvBuilder() {
         alignScore: details.alignScore,
       });
       setDraftId(details.id);
-      setStatusMessage('Brouillon chargé. Ajustez puis sauvegardez ou exportez.');
+      if (details.isShared && details.shareSlug && typeof window !== 'undefined') {
+        setShareState({
+          isShared: true,
+          shareSlug: details.shareSlug,
+          shareUrl: `${window.location.origin}/cv/share/${details.shareSlug}`,
+        });
+      } else {
+        setShareState({ isShared: Boolean(details.isShared), shareSlug: details.shareSlug ?? null, shareUrl: null });
+      }
+      showToast({
+        title: 'Brouillon chargé',
+        description: 'Ajustez les éléments puis sauvegardez ou exportez votre CV.',
+        variant: 'info',
+      });
     } catch (error) {
       console.error('[CV_DRAFT_LOAD]', error);
-      setStatusMessage(error instanceof Error ? error.message : 'Impossible de charger ce brouillon.');
+      showToast({
+        title: 'Erreur brouillon',
+        description: error instanceof Error ? error.message : 'Impossible de charger ce brouillon.',
+        variant: 'error',
+      });
     }
   }
 
   async function handleSaveDraft() {
     if (!draftId) {
-      setStatusMessage('Générez ou chargez un brouillon avant de sauvegarder.');
+      showToast({
+        title: 'Aucun brouillon actif',
+        description: 'Générez ou chargez un brouillon avant de sauvegarder.',
+        variant: 'info',
+      });
       return;
     }
 
@@ -403,6 +578,7 @@ export function CvBuilder() {
           draftId,
           content: resumeDraft.trim(),
           alignScore: insights?.alignScore ?? null,
+          theme: form.getValues('theme'),
         }),
       });
       if (!response.ok) {
@@ -412,10 +588,18 @@ export function CvBuilder() {
       setResume(resumeDraft);
       setIsEditingResume(false);
       await refreshContext();
-      setStatusMessage('Brouillon mis à jour avec succès.');
+      showToast({
+        title: 'Brouillon mis à jour',
+        description: 'Les dernières modifications ont été enregistrées.',
+        variant: 'success',
+      });
     } catch (error) {
       console.error('[CV_DRAFT_SAVE]', error);
-      setStatusMessage(error instanceof Error ? error.message : 'Erreur lors de la sauvegarde du brouillon.');
+      showToast({
+        title: 'Erreur sauvegarde',
+        description: error instanceof Error ? error.message : 'Erreur lors de la sauvegarde du brouillon.',
+        variant: 'error',
+      });
     } finally {
       setSaveDraftLoading(false);
     }
@@ -429,7 +613,12 @@ export function CvBuilder() {
     setInsights(null);
     setDraftId(null);
     setIsEditingResume(false);
-    setStatusMessage('Réinitialisé. Remplissez le formulaire pour générer un nouveau CV.');
+    setShareState({ isShared: false, shareUrl: null, shareSlug: null });
+    showToast({
+      title: 'Formulaire réinitialisé',
+      description: 'Complétez le formulaire pour générer un nouveau CV.',
+      variant: 'info',
+    });
   }
 
   const openLunaForCurrentCV = useCallback(() => {
@@ -454,26 +643,30 @@ export function CvBuilder() {
   }
 
   const previewMarkdown = isEditingResume ? resumeDraft : resume;
+  const scrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1.15fr,0.85fr]">
-      <Card className="border-white/10 bg-white/5">
-      <CardHeader>
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <CardTitle>Paramètres du CV</CardTitle>
-            <p className="mt-1 text-xs text-white/50">Exploitez vos analyses Phoenix pour un CV cohérent et impactant.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="ghost" onClick={openLunaForCurrentCV}>
-              <Sparkles className="h-4 w-4" /> Briefer Luna
-            </Button>
-            <Button type="button" variant="ghost" onClick={autofillFromContext} disabled={!context || contextLoading}>
-              Pré-remplir
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
+    <>
+      <div className="grid gap-6 lg:grid-cols-[1.15fr,0.85fr]">
+        <Card className="border-white/10 bg-white/5">
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle>Paramètres du CV</CardTitle>
+                <p className="mt-1 text-xs text-white/50">Exploitez vos analyses Phoenix pour un CV cohérent et impactant.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="ghost" onClick={openLunaForCurrentCV}>
+                  <Sparkles className="h-4 w-4" /> Briefer Luna
+                </Button>
+                <Button type="button" variant="ghost" onClick={autofillFromContext} disabled={!context || contextLoading}>
+                  Pré-remplir
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
         <CardContent className="space-y-6">
           {contextLoading && (
             <div className="flex items-center gap-2 rounded-3xl border border-white/10 bg-white/5 p-3 text-xs text-white/60">
@@ -487,6 +680,25 @@ export function CvBuilder() {
               <Button type="button" variant="ghost" className="ml-2 text-red-200" onClick={refreshContext}>
                 Réessayer
               </Button>
+            </div>
+          )}
+
+          {context?.aubeProfile && (
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-xs uppercase tracking-wide text-white/50">Profil Aube</span>
+                <Badge className="border-white/15 text-white/70">Élément {context.aubeProfile.element ?? 'Air'}</Badge>
+              </div>
+              {context.aubeProfile.forces && context.aubeProfile.forces.length > 0 && (
+                <p className="mt-2 text-xs text-white/60">Forces : {context.aubeProfile.forces.slice(0, 3).join(', ')}…</p>
+              )}
+              {context.aubeProfile.shadow && <p className="text-xs text-white/50">Zone d’attention : {context.aubeProfile.shadow}</p>}
+              {context.aubeProfile.clarityNote && <p className="text-xs text-white/40">Clarté : {context.aubeProfile.clarityNote}</p>}
+              {context.riseStats && (
+                <p className="mt-2 text-[11px] text-white/50">
+                  Rise : {context.riseStats.questsCompleted} quêtes réalisées • {context.riseStats.victoriesLogged} victoires consignées
+                </p>
+              )}
             </div>
           )}
 
@@ -523,10 +735,6 @@ export function CvBuilder() {
                 ))}
               </div>
             </div>
-          )}
-
-          {statusMessage && (
-            <div className="rounded-3xl border border-indigo-500/40 bg-indigo-500/10 p-3 text-xs text-indigo-100">{statusMessage}</div>
           )}
 
           <form onSubmit={onSubmit} className="space-y-6">
@@ -617,6 +825,36 @@ export function CvBuilder() {
                     </button>
                   ))}
                 </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-xs font-semibold uppercase tracking-wider text-white/60">Thème énergétique</label>
+              <div className="grid gap-2 sm:grid-cols-5">
+                {Object.entries(CV_THEMES).map(([key, theme]) => (
+                  <button
+                    type="button"
+                    key={key}
+                    onClick={() => {
+                      form.setValue('theme', key as CvThemeKey, { shouldDirty: true });
+                      if (shareState.isShared) {
+                        void updateShare(true, key as CvThemeKey);
+                      }
+                    }}
+                    className={cn(
+                      'rounded-2xl border px-3 py-3 text-left text-xs transition',
+                      themeSelection === key
+                        ? `${theme.border} bg-white/10 text-white`
+                        : 'border-white/10 bg-white/5 text-white/60',
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-white">{theme.label}</span>
+                      {themeSelection === key && <BadgeCheck className={`h-4 w-4 ${theme.accent}`} />}
+                    </div>
+                    <p className="mt-2 text-[11px] text-white/50">Aligné avec les énergies Aube & Rise.</p>
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -734,7 +972,26 @@ export function CvBuilder() {
                 <Button type="button" variant="ghost" onClick={() => router.push('/letters?from=cv')}>
                   Générer ma lettre d&apos;intro
                 </Button>
+                <Button
+                  type="button"
+                  variant={shareState.isShared ? 'secondary' : 'ghost'}
+                  onClick={() => updateShare(!shareState.isShared)}
+                  disabled={!draftId}
+                >
+                  {shareState.isShared ? 'Désactiver le profil public' : 'Activer le profil public'}
+                </Button>
               </div>
+              {shareState.isShared && shareState.shareUrl && (
+                <div className="mt-3 flex flex-wrap items-center gap-3 rounded-2xl border border-emerald-400/60 bg-emerald-500/10 p-3 text-xs text-emerald-100">
+                  <span className="truncate">{shareState.shareUrl}</span>
+                  <Button type="button" variant="secondary" className="text-xs" onClick={handleCopyShare}>
+                    Copier le lien
+                  </Button>
+                  <Button type="button" variant="ghost" className="text-xs" onClick={() => updateShare(false)}>
+                    Arrêter le partage
+                  </Button>
+                </div>
+              )}
             </>
           ) : (
             <p className="text-sm text-white/50">Complétez le formulaire pour générer un CV optimisé aligné sur vos trajectoires Aube.</p>
@@ -783,6 +1040,7 @@ export function CvBuilder() {
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-white">{draft.title ?? 'CV sans titre'}</span>
                         <Badge className="border-white/20 text-white/60">v{draft.version}</Badge>
+                        {draft.isShared && draft.shareSlug && <Badge className="border-emerald-400/40 text-emerald-200">Public</Badge>}
                       </div>
                       <span className="text-[11px] text-white/60">{new Date(draft.updatedAt).toLocaleString()}</span>
                     </div>
@@ -809,7 +1067,19 @@ export function CvBuilder() {
           ) : null}
         </CardContent>
       </Card>
-    </div>
+      </div>
+      {showScrollTop && (
+        <Button
+          type="button"
+          variant="secondary"
+          className="fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] left-4 z-[55] px-3 py-1.5 text-xs shadow-lg shadow-slate-950/20 md:hidden"
+          onClick={scrollToTop}
+          aria-label="Revenir en haut du formulaire"
+        >
+          Remonter
+        </Button>
+      )}
+    </>
   );
 }
 

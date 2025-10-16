@@ -27,7 +27,7 @@ export default function CvBuilderPage() {
             <PenTool className="h-4 w-4 text-emerald-300" />
             <span>Astuce: Importez vos expériences depuis LinkedIn pour accélérer la saisie.</span>
           </div>
-          <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-white/50">Export PDF bientôt disponible</span>
+          <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-white/50">Export PDF disponible</span>
         </CardContent>
       </Card>
 

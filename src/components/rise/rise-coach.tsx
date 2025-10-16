@@ -1,12 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Sparkles } from 'lucide-react';
+import { ChevronDown, RefreshCw, Sparkles } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useToast } from '@/components/ui/toast';
 import { LunaAssistHint } from '@/components/luna/luna-assist-hint';
@@ -54,8 +54,11 @@ export function RiseCoach() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [notes, setNotes] = useState<NotesState[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [savingNotes, setSavingNotes] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
+  const questionSectionRef = useRef<HTMLDivElement | null>(null);
+  const previousQuestionsCount = useRef(0);
 
   const matches = useMemo(() => context?.matches ?? [], [context?.matches]);
   const sessions = useMemo(() => context?.sessions ?? [], [context?.sessions]);
@@ -85,30 +88,58 @@ export function RiseCoach() {
       if (!response.ok) throw new Error('Impossible de charger le contexte Rise');
       const data = (await response.json()) as RiseContext;
       setContext(data);
+      setExpandedSessionId(null);
       if (!role && data.resumeSummary) {
-        setStatusMessage('Résumé CV importé depuis Phoenix : utilisez-le pour contextualiser vos réponses.');
+        showToast({
+          title: 'Résumé CV importé',
+          description: 'Phoenix a récupéré votre résumé pour contextualiser vos réponses Rise.',
+          variant: 'info',
+        });
       }
     } catch (error) {
       console.error('[RISE_CONTEXT]', error);
       setContextError(error instanceof Error ? error.message : 'Erreur de chargement du contexte');
     }
-  }, [role]);
+  }, [role, showToast]);
 
   useEffect(() => {
     void refreshContext();
   }, [refreshContext]);
 
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 320);
+    };
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    if (questions.length === 0) {
+      previousQuestionsCount.current = 0;
+      return;
+    }
+    if (questions.length !== previousQuestionsCount.current) {
+      previousQuestionsCount.current = questions.length;
+      questionSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [questions]);
+
   function autofillFromMatch(matchId?: string) {
     const match = matches.find((item) => item.id === matchId) ?? matches[0];
     if (!match) return;
     setRole(match.title);
-    setStatusMessage(`Role pré-rempli depuis votre trajectoire ${match.title}.`);
+    showToast({
+      title: 'Rôle pré-rempli',
+      description: `Trajectoire ${match.title} appliquée à l’atelier.`,
+      variant: 'info',
+    });
   }
 
   async function fetchQuestions() {
     if (!role) return;
     setLoading(true);
-    setStatusMessage(null);
     try {
       const response = await fetch('/api/rise/questions', {
         method: 'POST',
@@ -129,13 +160,16 @@ export function RiseCoach() {
           takeaway: '',
         })),
       );
-      setStatusMessage('Atelier généré. Entraînez-vous et capturez vos réponses clés.');
       openLunaForRise(
         `Tu es Luna, coach d'entretien. Nous venons de générer des questions pour le rôle ${role}. Donne-moi une astuce pour structurer mes réponses ${focus} et une question piège à préparer.`,
       );
     } catch (error) {
       console.error('[RISE_GENERATE]', error);
-      setStatusMessage(error instanceof Error ? error.message : 'Erreur interne');
+      showToast({
+        title: 'Erreur génération Rise',
+        description: error instanceof Error ? error.message : 'Erreur interne',
+        variant: 'error',
+      });
     } finally {
       setLoading(false);
     }
@@ -173,19 +207,26 @@ export function RiseCoach() {
         );
       }
       setSessionId(loadedSession.id);
-      setStatusMessage('Session Rise chargée. Ajustez vos réponses et sauvegardez.');
       openLunaForRise(
         `Tu es Luna, coach d'entretien. Nous reprenons la session ${loadedSession.role} axée ${loadedSession.focus}. Propose-moi une question de suivi et un conseil pour ancrer mes réponses.`,
       );
     } catch (error) {
       console.error('[RISE_SESSION_LOAD]', error);
-      setStatusMessage(error instanceof Error ? error.message : 'Erreur lors du chargement de la session');
+      showToast({
+        title: 'Erreur session Rise',
+        description: error instanceof Error ? error.message : 'Erreur lors du chargement de la session',
+        variant: 'error',
+      });
     }
   }
 
   async function saveNotes() {
     if (!sessionId) {
-      setStatusMessage('Générez une session avant de sauvegarder vos notes.');
+      showToast({
+        title: 'Aucune session active',
+        description: 'Générez un atelier avant d’enregistrer vos notes.',
+        variant: 'info',
+      });
       return;
     }
     setSavingNotes(true);
@@ -199,11 +240,19 @@ export function RiseCoach() {
         const error = await response.json().catch(() => ({}));
         throw new Error(error.message ?? 'Impossible de sauvegarder vos notes');
       }
-      setStatusMessage('Notes sauvegardées. Continuez votre entraînement !');
+      showToast({
+        title: 'Notes sauvegardées',
+        description: 'Vos réponses Rise ont été enregistrées.',
+        variant: 'success',
+      });
       await refreshContext();
     } catch (error) {
       console.error('[RISE_SAVE]', error);
-      setStatusMessage(error instanceof Error ? error.message : 'Erreur lors de la sauvegarde');
+      showToast({
+        title: 'Erreur sauvegarde',
+        description: error instanceof Error ? error.message : 'Erreur lors de la sauvegarde',
+        variant: 'error',
+      });
     } finally {
       setSavingNotes(false);
     }
@@ -215,11 +264,21 @@ export function RiseCoach() {
     setQuestions([]);
     setNotes([]);
     setSessionId(null);
-    setStatusMessage('Session réinitialisée. Relancez un atelier pour continuer.');
+    setExpandedSessionId(null);
+    showToast({
+      title: 'Session réinitialisée',
+      description: 'Relancez un atelier pour poursuivre la préparation.',
+      variant: 'info',
+    });
   }
 
+  const scrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
   return (
-    <div className="space-y-8">
+    <>
+      <div className="space-y-8">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-1.5">
           <h2 className="text-3xl font-semibold text-white">Rise — Interview Studio</h2>
@@ -270,10 +329,6 @@ export function RiseCoach() {
                   ))}
                 </div>
               </div>
-            )}
-
-            {statusMessage && (
-              <div className="rounded-3xl border border-indigo-500/40 bg-indigo-500/10 p-3 text-xs text-indigo-100">{statusMessage}</div>
             )}
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -349,32 +404,52 @@ export function RiseCoach() {
             {sessions.length > 0 && (
               <div className="space-y-2 text-xs text-white/60">
                 <span className="text-sm font-semibold text-white">Sessions récentes</span>
-                {sessions.map((item) => (
-                  <div key={item.id} className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                    <div className="flex items-center justify-between text-white">
-                      <span>{item.role || 'Session Rise'}</span>
-                      <Badge className="border-emerald-400/40 text-emerald-200">{item.focus}</Badge>
-                    </div>
-                    <p className="text-[11px] text-white/60">{new Date(item.createdAt).toLocaleString()}</p>
-                    <div className="mt-2 flex gap-2">
-                      <Button type="button" variant="secondary" className="text-xs" onClick={() => handleLoadSession(item.id)}>
-                        Charger cette session
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="text-xs"
-                        onClick={() =>
-                          openLunaForRise(
-                            `Tu es Luna. Nous reprenons la session d'entretien ${item.role} (focus ${item.focus}). Donne-moi un plan d'entraînement en 3 étapes et une question piège à préparer.`,
-                          )
-                        }
-                      >
-                        Débriefer avec Luna
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                <div className="space-y-2">
+                  {sessions.map((item) => {
+                    const isExpanded = expandedSessionId === item.id;
+                    return (
+                      <div key={item.id} className="overflow-hidden rounded-2xl border border-white/10 bg-black/20">
+                        <button
+                          type="button"
+                          aria-expanded={isExpanded}
+                          onClick={() => setExpandedSessionId(isExpanded ? null : item.id)}
+                          className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left text-white"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold">{item.role || 'Session Rise'}</p>
+                            <p className="text-[11px] text-white/60">{new Date(item.createdAt).toLocaleString()}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge className="border-emerald-400/40 text-emerald-200">{item.focus}</Badge>
+                            <ChevronDown className={cn('h-4 w-4 transition-transform', isExpanded ? 'rotate-180' : '')} />
+                          </div>
+                        </button>
+                        <div
+                          className={cn(
+                            'grid gap-2 border-t border-white/10 text-xs transition-all duration-200',
+                            isExpanded ? 'max-h-32 px-3 py-3 opacity-100' : 'max-h-0 px-3 opacity-0',
+                          )}
+                        >
+                          <Button type="button" variant="secondary" className="text-xs" onClick={() => handleLoadSession(item.id)}>
+                            Charger cette session
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="text-xs"
+                            onClick={() =>
+                              openLunaForRise(
+                                `Tu es Luna. Nous reprenons la session d'entretien ${item.role} (focus ${item.focus}). Donne-moi un plan d'entraînement en 3 étapes et une question piège à préparer.`,
+                              )
+                            }
+                          >
+                            Débriefer avec Luna
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </CardContent>
@@ -382,15 +457,16 @@ export function RiseCoach() {
       </div>
 
       {questions.length > 0 && (
-        <Card className="border-white/10 bg-white/5">
-          <CardHeader>
-            <CardTitle>Questions proposées</CardTitle>
-            <CardDescription>Structurez vos réponses et sauvegardez vos notes pour les sessions suivantes.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {questions.map((question, index) => (
-              <div key={question.question} className="space-y-3 rounded-3xl border border-white/10 bg-black/20 p-5">
-                <div className="flex flex-wrap items-center justify-between gap-2">
+        <div ref={questionSectionRef}>
+          <Card className="border-white/10 bg-white/5">
+            <CardHeader>
+              <CardTitle>Questions proposées</CardTitle>
+              <CardDescription>Structurez vos réponses et sauvegardez vos notes pour les sessions suivantes.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {questions.map((question, index) => (
+                <div key={question.question} className="space-y-3 rounded-3xl border border-white/10 bg-black/20 p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-sm font-semibold text-white">{question.question}</h3>
                   <Badge>{question.competency}</Badge>
                 </div>
@@ -437,9 +513,22 @@ export function RiseCoach() {
                 Débriefer avec Luna
               </Button>
             </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       )}
-    </div>
+      </div>
+      {showScrollTop && (
+        <Button
+          type="button"
+          variant="secondary"
+          className="fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] left-4 z-[55] px-3 py-1.5 text-xs shadow-lg shadow-slate-950/20 md:hidden"
+          onClick={scrollToTop}
+          aria-label="Revenir en haut de la page"
+        >
+          Remonter
+        </Button>
+      )}
+    </>
   );
 }

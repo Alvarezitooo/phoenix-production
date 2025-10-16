@@ -6,7 +6,7 @@ import { AnalyticsEventType, AssessmentMode, AssessmentStatus } from '@prisma/cl
 import { getCareerRecommendations, analyzeAssessmentResults, type CareerRecommendation } from '@/lib/ai';
 import { logAnalyticsEvent } from '@/lib/analytics';
 import { sendAssessmentCompletedEmail } from '@/lib/mailer';
-import { assertActiveSubscription, assertWithinQuota, canAccessModule } from '@/lib/subscription';
+import { EnergyError, spendEnergy } from '@/lib/energy';
 
 const bigFiveSchema = z.record(z.number().min(1).max(5)).refine((scores) => Object.keys(scores).length === 5, {
   message: 'Big Five must include exactly five traits',
@@ -83,13 +83,14 @@ export async function POST(request: Request) {
   try {
     const parsed = createSchema.parse(await request.json());
 
-    const subscription = await assertActiveSubscription(session.user.id);
-    await assertWithinQuota(session.user.id, 'assessments');
-    if (parsed.mode === 'COMPLETE') {
-      const allowed = canAccessModule(subscription.subscriptionPlan ?? 'ESSENTIAL', 'aube-complete');
-      if (!allowed) {
-        return NextResponse.json({ message: 'Votre plan ne permet pas l\'évaluation complète.' }, { status: 403 });
+    const actionKey = parsed.mode === 'COMPLETE' ? 'assessment.complete' : 'assessment.quick';
+    try {
+      await spendEnergy(session.user.id, actionKey, { metadata: { mode: parsed.mode } });
+    } catch (error) {
+      if (error instanceof EnergyError && error.code === 'INSUFFICIENT_ENERGY') {
+        return NextResponse.json({ message: 'Énergie insuffisante pour lancer cette évaluation.' }, { status: 402 });
       }
+      throw error;
     }
 
     const assessment = await prisma.assessment.create({
@@ -206,16 +207,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Invalid payload', issues: error.issues }, { status: 400 });
     }
 
-    if (error instanceof Error) {
-      if (error.message === 'SUBSCRIPTION_REQUIRED') {
-        return NextResponse.json({ message: 'Abonnement requis pour lancer une analyse.' }, { status: 402 });
-      }
-      if (error.message === 'PLAN_UPGRADE_REQUIRED') {
-        return NextResponse.json({ message: 'Veuillez passer au plan Pro pour débloquer cette analyse.' }, { status: 403 });
-      }
-      if (error.message === 'QUOTA_EXCEEDED') {
-        return NextResponse.json({ message: 'Quota mensuel atteint pour les évaluations.' }, { status: 429 });
-      }
+    if (error instanceof EnergyError && error.code === 'INSUFFICIENT_ENERGY') {
+      return NextResponse.json({ message: 'Énergie insuffisante pour lancer cette évaluation.' }, { status: 402 });
     }
 
     return NextResponse.json({ message: 'Failed to process assessment' }, { status: 500 });

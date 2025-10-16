@@ -1,42 +1,110 @@
 import nodemailer from 'nodemailer';
 
+type LetterReminderEmailParams = {
+  to: string;
+  name?: string;
+  draftId: string;
+  draftTitle: string;
+  updatedAt: Date;
+  keywords: string[];
+};
+
+type RitualReminderEmailParams = {
+  to: string;
+  name?: string;
+  pendingRituals: string[];
+  streakDays?: number;
+};
+
 let transporter: nodemailer.Transporter | null = null;
 
-function ensureTransporter() {
+function getTransporter() {
   if (transporter) return transporter;
 
+  const host = process.env.SMTP_HOST;
+  const port = Number.parseInt(process.env.SMTP_PORT ?? '587', 10);
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  if (!host || !user || !pass) {
+    throw new Error('SMTP configuration missing');
+  }
+
   transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_SERVER_HOST,
-    port: Number(process.env.EMAIL_SERVER_PORT ?? 587),
-    secure: false,
-    auth:
-      process.env.EMAIL_SERVER_USER && process.env.EMAIL_SERVER_PASSWORD
-        ? {
-            user: process.env.EMAIL_SERVER_USER,
-            pass: process.env.EMAIL_SERVER_PASSWORD,
-          }
-        : undefined,
+    host,
+    port,
+    secure: port === 465,
+    auth: {
+      user,
+      pass,
+    },
   });
 
   return transporter;
 }
 
-export async function sendAssessmentCompletedEmail(to: string, assessmentType: string) {
-  if (!process.env.EMAIL_FROM) {
-    console.warn('EMAIL_FROM not configured, skipping notification');
-    return;
+export async function sendLetterReminderEmail(params: LetterReminderEmailParams) {
+  const transport = getTransporter();
+  const formattedDate = params.updatedAt.toLocaleDateString('fr-FR', { dateStyle: 'medium' });
+  const keywords = params.keywords.length ? params.keywords.join(', ') : null;
+
+  const subject = 'Ta lettre est presque prête – Luna t’accompagne';
+  const bodyLines = [
+    `Bonjour ${params.name ?? 'cher membre'},`,
+    '',
+    `Ton brouillon “${params.draftTitle}” est resté en veille depuis le ${formattedDate}. Luna te propose de le finaliser pour publier ta lettre.`,
+  ];
+
+  if (keywords) {
+    bodyLines.push(`Mots-clés Luna : ${keywords}`);
   }
 
-  const transport = ensureTransporter();
+  bodyLines.push(
+    '',
+    'Reviens au studio lettres pour relancer ton élan.',
+    '',
+    'À très vite,',
+    'Luna'
+  );
 
   await transport.sendMail({
-    from: process.env.EMAIL_FROM,
-    to,
-    subject: `Your ${assessmentType} assessment is ready`,
-    html: `
-      <p>Bonjour,</p>
-      <p>Votre évaluation <strong>${assessmentType}</strong> est terminée. Connectez-vous à Phoenix pour découvrir vos recommandations de carrière.</p>
-      <p>À très vite,<br/>L'équipe Phoenix</p>
-    `,
+    from: process.env.MAILER_FROM ?? 'Luna <luna@phoenix.app>',
+    to: params.to,
+    subject,
+    text: bodyLines.join('\n'),
+  });
+}
+
+export async function sendRitualReminderEmail(params: RitualReminderEmailParams) {
+  const transport = getTransporter();
+  const subject = 'Tes rituels Luna t’attendent';
+  const ritualsList = params.pendingRituals.length
+    ? params.pendingRituals.map((item) => `• ${item}`).join('\n')
+    : null;
+
+  const bodyLines = [
+    `Bonjour ${params.name ?? 'ami de Luna'},`,
+    '',
+    'Prends deux minutes pour nourrir ton énergie aujourd’hui. Les rituels ci-dessous t’aideront à rester dans ton élan :',
+  ];
+
+  if (ritualsList) {
+    bodyLines.push('', ritualsList);
+  }
+
+  if (params.streakDays && params.streakDays > 0) {
+    bodyLines.push(
+      '',
+      `Ton streak actuel est de ${params.streakDays} jour${params.streakDays > 1 ? 's' : ''}. Un petit rituel maintenant et tu restes sur ta lancée !`,
+    );
+  }
+
+  bodyLines.push('', 'À très vite dans l’espace Luna ✦');
+
+  await transport.sendMail({
+    from: process.env.MAILER_FROM ?? 'Luna <luna@phoenix.app>',
+    to: params.to,
+    subject,
+    text: bodyLines.join('\n'),
   });
 }

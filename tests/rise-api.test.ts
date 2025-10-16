@@ -6,18 +6,18 @@ import { GET as getRiseSession, PATCH as patchRiseSession } from '@/app/api/rise
 import { getAuthSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getInterviewPracticeSet } from '@/lib/ai';
-import { assertActiveSubscription } from '@/lib/subscription';
+import { spendEnergy } from '@/lib/energy';
 
 vi.mock('@/lib/auth', () => ({
   getAuthSession: vi.fn(),
 }));
 
-vi.mock('@/lib/subscription', () => ({
-  assertActiveSubscription: vi.fn(),
-}));
-
 vi.mock('@/lib/ai', () => ({
   getInterviewPracticeSet: vi.fn(),
+}));
+
+vi.mock('@/lib/energy', () => ({
+  spendEnergy: vi.fn().mockResolvedValue({ balance: 80, bonusAwarded: 0, streakDays: 2 }),
 }));
 
 type PrismaMock = {
@@ -34,6 +34,7 @@ type PrismaMock = {
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
+    $transaction: vi.fn().mockImplementation(async (fn) => fn(prisma)), // Mock de $transaction
     resumeDraft: { findFirst: vi.fn() },
     letterDraft: { findFirst: vi.fn() },
     riseSession: {
@@ -47,8 +48,8 @@ vi.mock('@/lib/prisma', () => ({
 }));
 
 const mockedAuth = vi.mocked(getAuthSession);
-const mockedSubscription = vi.mocked(assertActiveSubscription);
 const mockedInterviewSet = vi.mocked(getInterviewPracticeSet);
+const mockedSpendEnergy = vi.mocked(spendEnergy);
 const prismaClient = () => prisma as unknown as PrismaMock;
 
 describe('Rise API routes', () => {
@@ -136,7 +137,6 @@ describe('Rise API routes', () => {
 
     it('génère et persiste un atelier Rise', async () => {
       mockedAuth.mockResolvedValueOnce({ user: { id: 'user_1' } } as AppSession);
-      mockedSubscription.mockResolvedValueOnce();
       mockedInterviewSet.mockResolvedValueOnce([
         {
           question: 'Présentez un projet clé',
@@ -157,8 +157,8 @@ describe('Rise API routes', () => {
       expect(response.status).toBe(200);
       const payload = (await response.json()) as Record<string, unknown>;
 
-      expect(mockedSubscription).toHaveBeenCalledWith('user_1');
-      expect(mockedInterviewSet).toHaveBeenCalledWith({ role: 'Head of Product', focus: 'technical' });
+      expect(mockedSpendEnergy).toHaveBeenCalledWith('user_1', 'rise.generate', expect.any(Object));
+      expect(mockedInterviewSet).toHaveBeenCalledWith({ role: 'Head of Product', focus: 'technical' }, { userId: 'user_1' });
       expect(prismaClient().riseSession.create).toHaveBeenCalledWith({
         data: {
           userId: 'user_1',

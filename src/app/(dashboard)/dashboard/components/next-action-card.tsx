@@ -25,15 +25,13 @@ type NextActionContext = {
   hasRiseSessions: boolean;
   hasConversations: boolean;
   hasErrors: boolean;
-  subscriptionStatus: string;
-  subscriptionPlan: string;
+  energyBalance: number;
   latestMatchTitle: string | null;
   latestLetterTitle: string | null;
 };
 
 function createContext(snapshot: DashboardSnapshot): NextActionContext {
-  const subscriptionStatus = snapshot.user?.subscriptionStatus ?? 'INACTIVE';
-  const subscriptionPlan = snapshot.user?.subscriptionPlan ?? 'ESSENTIAL';
+  const energyBalance = snapshot.user?.energyBalance ?? 0;
   const latestMatchTitle = snapshot.matches[0]?.title ?? null;
   const latestLetterTitle = snapshot.letters[0]?.title ?? null;
 
@@ -45,8 +43,7 @@ function createContext(snapshot: DashboardSnapshot): NextActionContext {
     hasRiseSessions: snapshot.riseSessions.length > 0,
     hasConversations: snapshot.conversations.length > 0,
     hasErrors: snapshot.errors.length > 0,
-    subscriptionStatus,
-    subscriptionPlan,
+    energyBalance,
     latestMatchTitle,
     latestLetterTitle,
   };
@@ -54,31 +51,13 @@ function createContext(snapshot: DashboardSnapshot): NextActionContext {
 
 const nextActionRules: Array<(context: NextActionContext) => NextActionConfig | null> = [
   (context) => {
-    if (context.subscriptionStatus === 'PAST_DUE') {
+    if (context.energyBalance < 3) {
       return {
-        id: 'billing-update',
-        badge: 'Compte',
-        title: 'Mettre à jour votre accès',
-        description: 'Votre abonnement est en attente de paiement. Actualisez votre moyen de paiement pour conserver les modules actifs.',
-        cta: { label: 'Mettre à jour le paiement', href: '/account/billing' },
-      };
-    }
-    if (context.subscriptionStatus === 'CANCELED') {
-      return {
-        id: 'plan-reactivation',
-        badge: 'Compte',
-        title: 'Réactiver votre abonnement',
-        description: 'Réactivez Phoenix pour utiliser Aube, Letters et Rise sans interruption.',
-        cta: { label: 'Voir les offres', href: '/pricing' },
-      };
-    }
-    if (context.subscriptionStatus === 'INACTIVE') {
-      return {
-        id: 'plan-activation',
-        badge: 'Compte',
-        title: 'Activer l’accès complet',
-        description: 'Choisissez un plan pour débloquer les analyses Aube et les générateurs IA.',
-        cta: { label: 'Découvrir les plans', href: '/pricing' },
+        id: 'energy-topup',
+        badge: 'Énergie',
+        title: 'Rechargez votre énergie Luna',
+        description: 'Il vous reste peu de points. Rechargez pour continuer à générer CV, lettres et ateliers.',
+        cta: { label: 'Voir les packs énergie', href: '/energy' },
       };
     }
     return null;

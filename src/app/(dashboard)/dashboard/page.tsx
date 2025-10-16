@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import type { LucideIcon } from 'lucide-react';
-import { Compass, FileText, MessageCircle, Sparkles, CheckCircle2, Circle, CalendarClock, Bot, ArrowUpRight } from 'lucide-react';
+import { Compass, FileText, MessageCircle, Sparkles, CheckCircle2, Circle, CalendarClock, Bot, ArrowUpRight, Zap, Sunrise } from 'lucide-react';
 import { getAuthSession } from '@/lib/auth';
 import { getDashboardSnapshot } from '@/lib/dashboard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,6 +9,9 @@ import { ProgressBar } from '@/components/ui/progress';
 import { CompatibilityBadge } from '@/components/ui/badge';
 import { NextActionCard } from './components/next-action-card';
 import { LunaSuggestionsCard, type LunaSuggestion } from './components/luna-suggestions-card';
+import { DailyRituals } from './components/daily-rituals';
+import { DashboardEnergy } from './components/dashboard-energy';
+import { STREAK_BONUS_AMOUNT, STREAK_LENGTH_FOR_BONUS } from '@/lib/energy';
 
 const focusLabels: Record<string, string> = {
   behavioral: 'Comportemental',
@@ -25,88 +28,6 @@ function formatDate(isoDate: string): string {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(isoDate));
-}
-
-const SUBSCRIPTION_PLAN_LABELS: Record<string, string> = {
-  DISCOVERY: 'Découverte',
-  PRO: 'Pro',
-  ESSENTIAL: 'Essentiel',
-};
-
-type SubscriptionDisplay = {
-  planLabel: string;
-  statusHeadline: string;
-  helperText: string | null;
-  badgeLabel: string;
-  badgeClass: string;
-  cta: {
-    label: string;
-    href: string;
-  };
-};
-
-function computeSubscriptionDisplay(
-  user:
-    | {
-        subscriptionPlan: string | null;
-        subscriptionStatus: string | null;
-        currentPeriodEnd: string | null;
-      }
-    | null,
-): SubscriptionDisplay {
-  const status = user?.subscriptionStatus ?? 'INACTIVE';
-  const planKey = user?.subscriptionPlan ?? 'DISCOVERY';
-  const planLabel = SUBSCRIPTION_PLAN_LABELS[planKey] ?? planKey;
-  const periodEnd = user?.currentPeriodEnd ? new Date(user.currentPeriodEnd).toLocaleDateString('fr-FR') : null;
-
-  switch (status) {
-    case 'ACTIVE':
-      if (planKey === 'DISCOVERY') {
-        return {
-          planLabel,
-          statusHeadline: 'Découverte en cours',
-          helperText: periodEnd ? `Accès offert jusqu’au ${periodEnd}` : 'Profitez de vos 14 jours offerts.',
-          badgeLabel: 'Accès offert',
-          badgeClass: 'border border-sky-400/40 bg-sky-500/10 text-sky-100',
-          cta: { label: 'Passer à Essentiel', href: '/pricing' },
-        };
-      }
-      return {
-        planLabel,
-        statusHeadline: 'Actif',
-        helperText: periodEnd ? `Jusqu’au ${periodEnd}` : null,
-        badgeLabel: 'À jour',
-        badgeClass: 'border border-emerald-400/50 bg-emerald-500/10 text-emerald-200',
-        cta: { label: 'Gérer mon plan', href: '/account/billing' },
-      };
-    case 'PAST_DUE':
-      return {
-        planLabel,
-        statusHeadline: 'Paiement requis',
-        helperText: 'Actualisez votre paiement pour conserver l’accès.',
-        badgeLabel: 'À mettre à jour',
-        badgeClass: 'border border-amber-400/50 bg-amber-500/10 text-amber-200',
-        cta: { label: 'Mettre à jour le paiement', href: '/account/billing' },
-      };
-    case 'CANCELED':
-      return {
-        planLabel,
-        statusHeadline: 'Résilié',
-        helperText: periodEnd ? `Accès jusqu’au ${periodEnd}` : 'Réactivez votre abonnement pour reprendre votre progression.',
-        badgeLabel: 'Résilié',
-        badgeClass: 'border border-rose-400/50 bg-rose-500/10 text-rose-200',
-        cta: { label: 'Réactiver mon plan', href: '/pricing' },
-      };
-    default:
-      return {
-        planLabel,
-        statusHeadline: 'Inactif',
-        helperText: 'Activez un plan pour débloquer les modules Phoenix.',
-        badgeLabel: 'Inactif',
-        badgeClass: 'border border-amber-400/50 bg-amber-500/10 text-amber-200',
-        cta: { label: 'Découvrir les offres', href: '/pricing' },
-      };
-  }
 }
 
 type TimelineEvent = {
@@ -142,17 +63,15 @@ export default async function DashboardPage() {
   }
 
   const snapshot = await getDashboardSnapshot(session.user.id);
-  const { user, matches, resumeSummary, letterPreview, letters, riseSessions, assessments, conversations, errors } = snapshot;
+  const { user, matches, resumeSummary, letterPreview, letters, riseSessions, assessments, conversations, auroraCompleted, errors } = snapshot;
 
-  const subscriptionDisplay = computeSubscriptionDisplay(
-    user
-      ? {
-          subscriptionPlan: user.subscriptionPlan,
-          subscriptionStatus: user.subscriptionStatus,
-          currentPeriodEnd: user.currentPeriodEnd,
-        }
-      : null,
-  );
+  const energyBalance = user?.energyBalance ?? 0;
+  const streakDays = user?.streakDays ?? 0;
+  const streakProgressRemainder = streakDays % STREAK_LENGTH_FOR_BONUS;
+  const streakProgressDays = streakDays === 0 ? 0 : streakProgressRemainder === 0 ? STREAK_LENGTH_FOR_BONUS : streakProgressRemainder;
+  const daysUntilBonus = streakProgressDays === STREAK_LENGTH_FOR_BONUS ? 0 : STREAK_LENGTH_FOR_BONUS - streakProgressDays;
+
+  const lastActionLabel = user?.lastEnergyActionAt ? formatDate(user.lastEnergyActionAt) : null;
 
   const journeySteps = [
     {
@@ -162,6 +81,14 @@ export default async function DashboardPage() {
       completed: assessments.length > 0,
       icon: Compass,
       href: '/aube',
+    },
+    {
+      key: 'aurora',
+      label: 'Aurora',
+      description: auroraCompleted ? 'Parcours terminé' : 'Apprivoise l\'IA en 20 min',
+      completed: auroraCompleted,
+      icon: Sunrise,
+      href: '/aurora',
     },
     {
       key: 'letters',
@@ -359,23 +286,26 @@ export default async function DashboardPage() {
         <div className="flex flex-col gap-4 text-sm text-white md:flex-row md:items-center">
           <div className="flex items-center gap-3 rounded-3xl border border-white/20 bg-white/10 px-6 py-3">
             <div className="flex flex-col">
-              <span className="text-xs uppercase text-white/50">Plan {subscriptionDisplay.planLabel}</span>
-              <span className="text-lg font-semibold text-white">{subscriptionDisplay.statusHeadline}</span>
-              {subscriptionDisplay.helperText && (
-                <span className="text-xs text-white/50">{subscriptionDisplay.helperText}</span>
+              <span className="text-xs uppercase text-white/50">Énergie disponible</span>
+              <span className="text-lg font-semibold text-white">{energyBalance} pts</span>
+              <span className="text-xs text-white/50">
+                {daysUntilBonus === STREAK_LENGTH_FOR_BONUS
+                  ? `Bonus +${STREAK_BONUS_AMOUNT} après ${STREAK_LENGTH_FOR_BONUS} jours consécutifs`
+                  : `Encore ${daysUntilBonus} jour${daysUntilBonus > 1 ? 's' : ''} pour +${STREAK_BONUS_AMOUNT} énergie`}
+              </span>
+              {lastActionLabel && (
+                <span className="text-[11px] text-white/40">Dernière action : {lastActionLabel}</span>
               )}
             </div>
-            <span
-              className={`rounded-full px-3 py-1 text-xs font-semibold ${subscriptionDisplay.badgeClass}`}
-            >
-              {subscriptionDisplay.badgeLabel}
+            <span className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-200">
+              Bonus streak
             </span>
           </div>
           <Link
-            href={subscriptionDisplay.cta.href}
+            href="/energy"
             className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 transition hover:scale-[1.01] hover:shadow-xl"
           >
-            {subscriptionDisplay.cta.label}
+            <Zap className="h-4 w-4" /> Recharger en énergie
           </Link>
         </div>
       </section>
@@ -429,6 +359,18 @@ export default async function DashboardPage() {
       <section>
         <NextActionCard snapshot={snapshot} />
       </section>
+
+      <DashboardEnergy
+        balance={energyBalance}
+        element={null}
+        streakDays={streakDays}
+        bonusAmount={STREAK_BONUS_AMOUNT}
+        bonusThreshold={STREAK_LENGTH_FOR_BONUS}
+        bonusProgressDays={streakProgressDays}
+        daysUntilBonus={daysUntilBonus}
+      />
+
+      <DailyRituals />
 
       <section className="grid gap-6 lg:grid-cols-[1.6fr,1fr]">
         <Card>

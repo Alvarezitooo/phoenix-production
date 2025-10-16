@@ -16,7 +16,7 @@ export function PricingAnalyticsTracker() {
     void fetch('/api/analytics/event', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'PLAN_UPGRADE_VIEW', metadata: { source } }),
+      body: JSON.stringify({ type: 'ENERGY_PACK_VIEW', metadata: { source } }),
     }).catch(() => {
       sentRef.current = false;
     });

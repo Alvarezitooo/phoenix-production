@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { LETTER_RUNES } from '@/config/letters';
 
 export async function GET() {
   const session = await getAuthSession();
@@ -30,6 +31,15 @@ export async function GET() {
           feedback: {
             orderBy: { createdAt: 'desc' },
             take: 3,
+          },
+          publication: {
+            select: {
+              id: true,
+              status: true,
+              moderatedAt: true,
+              moderationNote: true,
+              publishedAt: true,
+            },
           },
         },
       }),
@@ -72,21 +82,48 @@ export async function GET() {
         assessmentId: match.assessmentId,
         }));
       })(),
-      letterDrafts: letters.map((draft) => ({
-        id: draft.id,
-        title: draft.title,
-        template: draft.template,
-        tone: draft.tone,
-        language: draft.language,
-        updatedAt: draft.updatedAt,
-        alignScore: draft.alignScore,
-        feedback: draft.feedback.map((feedback) => ({
-          id: feedback.id,
-          section: feedback.section,
-          message: feedback.message,
-          createdAt: feedback.createdAt,
-        })),
-      })),
+      letterDrafts: letters.map((draft) => {
+        const rune = draft.runeId ? LETTER_RUNES.find((item) => item.id === draft.runeId) ?? null : null;
+        return {
+          id: draft.id,
+          title: draft.title,
+          template: draft.template,
+          tone: draft.tone,
+          language: draft.language,
+          updatedAt: draft.updatedAt,
+          alignScore: draft.alignScore,
+          mirror: draft.mirrorText
+            ? {
+                text: draft.mirrorText,
+                keywords: draft.mirrorKeywords ?? [],
+                emotions: draft.mirrorEmotions ?? [],
+                energyPulse: draft.mirrorEnergyPulse ?? null,
+                rune: rune
+                  ? {
+                      id: rune.id,
+                      label: rune.label,
+                      confidence: draft.runeConfidence ?? null,
+                    }
+                  : null,
+              }
+            : null,
+          feedback: draft.feedback.map((feedback) => ({
+            id: feedback.id,
+            section: feedback.section,
+            message: feedback.message,
+            createdAt: feedback.createdAt,
+          })),
+          publication: draft.publication
+            ? {
+                id: draft.publication.id,
+                status: draft.publication.status,
+                moderatedAt: draft.publication.moderatedAt,
+                moderatorNote: draft.publication.moderationNote,
+                publishedAt: draft.publication.publishedAt,
+              }
+            : null,
+        };
+      }),
       preferredMatchId,
     });
   } catch (error) {

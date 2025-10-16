@@ -8,8 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Rocket } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import type { SubscriptionPlan } from '@prisma/client';
+import { useRouter } from 'next/navigation';
 
 const schema = z.object({
   name: z.string().min(2),
@@ -35,18 +34,9 @@ export default function RegisterPage() {
 
 function RegisterPageContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const form = useForm<FormValues>({ resolver: zodResolver(schema) });
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-
-  const requestedPlan = (searchParams?.get('plan')?.toUpperCase() as SubscriptionPlan | undefined) ?? 'DISCOVERY';
-  const planLabels: Record<SubscriptionPlan, string> = {
-    DISCOVERY: 'Plan Découverte',
-    ESSENTIAL: 'Plan Essentiel',
-    PRO: 'Plan Pro',
-  };
-  const displayPlan = planLabels[requestedPlan] ?? planLabels.DISCOVERY;
 
   async function onSubmit(values: FormValues) {
     setError(null);
@@ -54,7 +44,7 @@ function RegisterPageContent() {
     const response = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...values, plan: requestedPlan }),
+      body: JSON.stringify(values),
     });
 
     if (!response.ok) {
@@ -75,7 +65,7 @@ function RegisterPageContent() {
         </div>
         <h1 className="text-2xl font-semibold">Créez votre compte</h1>
         <p className="text-sm text-white/60">
-          Activez votre espace Phoenix pour accéder aux modules IA personnalisés ({displayPlan}).
+          Activez votre espace Phoenix pour accéder aux modules IA personnalisés et recevoir 40 points d’énergie de bienvenue.
         </p>
       </div>
 

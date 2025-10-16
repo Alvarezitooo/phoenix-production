@@ -14,10 +14,16 @@ export async function GET() {
       select: {
         name: true,
         email: true,
-        subscriptionPlan: true,
-        subscriptionStatus: true,
-        currentPeriodEnd: true,
+        preferredCareerMatchId: true,
         createdAt: true,
+        energyWallet: {
+          select: {
+            balance: true,
+            currentStreakDays: true,
+            lastEnergyActionAt: true,
+            lastBonusAwardedAt: true,
+          },
+        },
       },
     }),
     prisma.assessment.findMany({

@@ -37,6 +37,7 @@ const updateSchema = z.object({
   draftId: z.string(),
   content: z.string().min(10),
   alignScore: z.number().min(0).max(100).nullable().optional(),
+  theme: z.enum(['FEU', 'EAU', 'TERRE', 'AIR', 'ETHER']).optional(),
 });
 
 export async function PATCH(request: Request) {
@@ -64,6 +65,7 @@ export async function PATCH(request: Request) {
           resumeMarkdown: payload.content,
         },
         alignScore: payload.alignScore ?? draft.alignScore,
+        theme: payload.theme ?? draft.theme,
       },
     });
 

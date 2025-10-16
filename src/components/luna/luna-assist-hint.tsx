@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { Sparkles, Loader2, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/utils/cn';
@@ -15,6 +15,7 @@ type LunaAssistHintProps = {
 };
 
 export function LunaAssistHint({ label = 'Demander à Luna', helper, getPrompt, focusArea = 'coaching', source = 'unknown' }: LunaAssistHintProps) {
+  const hintId = useId();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,10 +24,14 @@ export function LunaAssistHint({ label = 'Demander à Luna', helper, getPrompt, 
   const handleToggle = useCallback(async () => {
     const nextOpen = !open;
     setOpen(nextOpen);
-    if (!nextOpen) return;
+    if (!nextOpen) {
+      window.dispatchEvent(new CustomEvent('phoenix:luna-hint-toggle', { detail: { id: hintId, open: false } }));
+      return;
+    }
 
     setLoading(true);
     setError(null);
+    window.dispatchEvent(new CustomEvent('phoenix:luna-hint-toggle', { detail: { id: hintId, open: true } }));
     logLunaInteraction('hint_open', { source, focusArea });
     try {
       const prompt = getPrompt().trim();
@@ -56,7 +61,7 @@ export function LunaAssistHint({ label = 'Demander à Luna', helper, getPrompt, 
     } finally {
       setLoading(false);
     }
-  }, [open, getPrompt, focusArea, source]);
+  }, [open, getPrompt, focusArea, source, hintId]);
 
   const handleOpenFullLuna = useCallback(() => {
     const prompt = getPrompt().trim();
@@ -72,36 +77,60 @@ export function LunaAssistHint({ label = 'Demander à Luna', helper, getPrompt, 
     logLunaInteraction('hint_open_full', { source, focusArea });
   }, [getPrompt, source, focusArea]);
 
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ id: string; open: boolean }>).detail;
+      if (!detail || detail.id === hintId) return;
+      if (detail.open) {
+        setOpen(false);
+      }
+    };
+    window.addEventListener('phoenix:luna-hint-toggle', handler as EventListener);
+    return () => window.removeEventListener('phoenix:luna-hint-toggle', handler as EventListener);
+  }, [hintId]);
+
   return (
     <div className="text-xs">
-      <Button type="button" variant="ghost" className="gap-1 text-xs" onClick={handleToggle}>
+      <Button
+        type="button"
+        variant="ghost"
+        className={cn('gap-1 text-xs hover:bg-emerald-500/10', open && 'bg-emerald-500/10 text-emerald-100')}
+        aria-expanded={open}
+        aria-controls={`${hintId}-panel`}
+        onClick={handleToggle}
+      >
         <Sparkles className="h-4 w-4" /> {label}
       </Button>
       {helper && <p className="mt-1 text-[11px] text-white/50">{helper}</p>}
-      {open && (
-        <div className="mt-2 space-y-3 rounded-3xl border border-emerald-400/40 bg-emerald-500/10 p-4 text-left text-xs text-emerald-100">
-          {loading ? (
-            <div className="flex items-center gap-2 text-emerald-100">
-              <Loader2 className="h-4 w-4 animate-spin" /> Luna réfléchit…
-            </div>
-          ) : error ? (
-            <p className="text-rose-200">{error}</p>
-          ) : (
-            <>
-              <p className="leading-relaxed text-emerald-100/90">{response ?? 'Ajoutez un peu de contexte, puis relancez Luna.'}</p>
-              <button
-                type="button"
-                onClick={handleOpenFullLuna}
-                className={cn(
-                  'inline-flex items-center gap-2 rounded-full border border-emerald-300/40 bg-transparent px-3 py-1 text-[11px] font-semibold text-emerald-200 transition hover:bg-emerald-400/20',
-                )}
-              >
-                Ouvrir Luna <ExternalLink className="h-3 w-3" />
-              </button>
-            </>
-          )}
-        </div>
-      )}
+      <div
+        id={`${hintId}-panel`}
+        className={cn(
+          'mt-2 overflow-hidden rounded-3xl border border-emerald-400/40 bg-emerald-500/10 text-left text-xs text-emerald-100 transition-all duration-200',
+          open ? 'max-h-[480px] opacity-100 p-3 sm:p-4' : 'max-h-0 p-0 opacity-0',
+        )}
+        aria-hidden={!open}
+      >
+        {loading ? (
+          <div className="flex items-center gap-2 text-emerald-100">
+            <Loader2 className="h-4 w-4 animate-spin" /> Luna réfléchit…
+          </div>
+        ) : error ? (
+          <p className="text-rose-200">{error}</p>
+        ) : (
+          <>
+            <p className="leading-relaxed text-emerald-100/90">{response ?? 'Ajoutez un peu de contexte, puis relancez Luna.'}</p>
+            <button
+              type="button"
+              onClick={handleOpenFullLuna}
+              className={cn(
+                'mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-300/40 bg-transparent px-3 py-1 text-[11px] font-semibold text-emerald-200 transition hover:bg-emerald-400/20',
+              )}
+            >
+              Ouvrir Luna <ExternalLink className="h-3 w-3" />
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }

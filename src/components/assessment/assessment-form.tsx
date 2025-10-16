@@ -14,8 +14,8 @@ import { AssessmentCompleteReport } from '@/components/assessment/assessment-com
 import { LunaAssistHint } from '@/components/luna/luna-assist-hint';
 import { ArrowRight, Lightbulb, ShieldCheck, Zap } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
-import type { SubscriptionPlan } from '@prisma/client';
 import { useSession } from 'next-auth/react';
+import { ENERGY_COSTS } from '@/config/energy';
 
 const ASSESSMENT_MODES = {
   QUICK: 'QUICK',
@@ -260,8 +260,8 @@ export function AssessmentForm() {
   const [expressError, setExpressError] = useState<string | null>(null);
   const [completedAssessmentId, setCompletedAssessmentId] = useState<string | null>(null);
   const { data: session } = useSession();
-  const userPlan = (session?.user?.subscriptionPlan as SubscriptionPlan | undefined) ?? 'DISCOVERY';
-  const isPro = userPlan === 'PRO';
+  const quickAssessmentCost = ENERGY_COSTS['assessment.quick'];
+  const completeAssessmentCost = ENERGY_COSTS['assessment.complete'];
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(session?.user?.preferredCareerMatchId ?? null);
   const [selectingMatchId, setSelectingMatchId] = useState<string | null>(null);
   const [selectionMessage, setSelectionMessage] = useState<string | null>(null);
@@ -643,13 +643,13 @@ export function AssessmentForm() {
             {[
               {
                 title: 'Analyse Express',
-                subtitle: 'Inclus dans Essentiel',
+                subtitle: `Coût : ${quickAssessmentCost} point${quickAssessmentCost > 1 ? 's' : ''}`,
                 description: 'Un diagnostic en moins de 3 minutes pour identifier vos pistes prioritaires.',
                 onClick: startExpressFlow,
               },
               {
                 title: 'Analyse Complète',
-                subtitle: 'Inclus dans Pro',
+                subtitle: `Coût : ${completeAssessmentCost} point${completeAssessmentCost > 1 ? 's' : ''}`,
                 description: 'Une exploration approfondie de vos traits, valeurs et ambitions avec rapport détaillé.',
                 onClick: startCompleteFlow,
               },
@@ -743,8 +743,11 @@ export function AssessmentForm() {
                   <Button onClick={startCompleteFlow} variant="secondary" className="text-xs">
                     Explorer l&apos;analyse complète
                   </Button>
-                  <Link href="/pricing" className="inline-flex items-center justify-center rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-emerald-950 transition hover:bg-emerald-400">
-                    Passer au plan Pro
+                  <Link
+                    href="/energy"
+                    className="inline-flex items-center justify-center rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-emerald-950 transition hover:bg-emerald-400"
+                  >
+                    Recharger en énergie
                   </Link>
                 </div>
               </div>
@@ -756,7 +759,6 @@ export function AssessmentForm() {
               summary={summary}
               recommendations={results}
               assessmentId={completedAssessmentId}
-              isPro={isPro}
               selectedMatchId={selectedMatchId}
               selectingMatchId={selectingMatchId}
               selectionMessage={selectionMessage}
@@ -1273,8 +1275,8 @@ export function AssessmentForm() {
             <div className="flex items-center justify-between">
               <div className="text-xs text-white/50">
                 {mode === ASSESSMENT_MODES.QUICK
-                  ? 'Analyse Quick disponible avec le plan Essentiel.'
-                  : 'Analyse Complete réservée au plan Pro.'}
+                  ? `Coût : ${quickAssessmentCost} point${quickAssessmentCost > 1 ? 's' : ''} d’énergie`
+                  : `Coût : ${completeAssessmentCost} point${completeAssessmentCost > 1 ? 's' : ''} d’énergie`}
               </div>
               <Button onClick={handleNext} loading={loading}>
                 {currentStep === totalSteps - 1 ? 'Générer les résultats' : 'Étape suivante'}

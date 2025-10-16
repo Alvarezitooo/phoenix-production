@@ -8,6 +8,7 @@ import { Recommendation } from '@/components/assessment/assessment-form';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2 } from 'lucide-react';
 import { FeedbackWidget } from '@/components/feedback/feedback-widget';
+import { ENERGY_COSTS } from '@/config/energy';
 
 function uniqueValues(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
@@ -46,7 +47,6 @@ type AssessmentCompleteReportProps = {
   summary: string | null;
   recommendations: Recommendation[];
   assessmentId: string | null;
-  isPro: boolean;
   selectedMatchId: string | null;
   selectingMatchId: string | null;
   selectionMessage: string | null;
@@ -59,7 +59,6 @@ export function AssessmentCompleteReport({
   summary,
   recommendations,
   assessmentId,
-  isPro,
   selectedMatchId,
   selectingMatchId,
   selectionMessage,
@@ -380,57 +379,39 @@ export function AssessmentCompleteReport({
         </CardContent>
       </Card>
 
-      {isPro ? (
-        <Card className="border-white/10 bg-white/5">
-          <CardHeader>
-            <CardTitle>Exporter le rapport</CardTitle>
-            <CardDescription>Partagez vos résultats Aube avec vos parties prenantes.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex flex-wrap gap-3">
-              <Button
-                variant="secondary"
-                disabled={exportLoading !== null}
-                loading={exportLoading === 'pdf'}
-                onClick={() => handleExport('pdf')}
-              >
-                Export PDF
-              </Button>
-              <Button
-                variant="ghost"
-                disabled={exportLoading !== null}
-                loading={exportLoading === 'markdown'}
-                onClick={() => handleExport('markdown')}
-              >
-                Export Markdown / Notion
-              </Button>
-            </div>
-            {exportMessage && <p className="text-xs text-emerald-200">{exportMessage}</p>}
-            {exportError && <p className="text-xs text-rose-300">{exportError}</p>}
-            {!assessmentId && (
-              <p className="text-xs text-white/50">Relancez une analyse complète pour générer un rapport exportable.</p>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="border-white/10 bg-white/5">
-          <CardHeader>
-            <CardTitle>Exporter le rapport</CardTitle>
-            <CardDescription>Réservé au plan Pro avec rapport complet illimité.</CardDescription>
-          </CardHeader>
-          <CardContent className="text-sm text-white/60">
-            Passez au plan Pro pour télécharger le rapport Aube au format PDF/Markdown et l’intégrer directement dans vos outils (Notion, ATS).
-            <div className="mt-4">
-              <Link
-                href="/pricing"
-                className="inline-flex items-center justify-center rounded-full border border-white/20 bg-transparent px-4 py-2 text-xs font-semibold text-white/80 transition hover:bg-white/10 hover:text-white"
-              >
-                Découvrir le plan Pro
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <Card className="border-white/10 bg-white/5">
+        <CardHeader>
+          <CardTitle>Exporter le rapport</CardTitle>
+          <CardDescription>
+            Chaque export PDF consomme {ENERGY_COSTS['export.pdf']} point{ENERGY_COSTS['export.pdf'] > 1 ? 's' : ''} d’énergie.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-3">
+            <Button
+              variant="secondary"
+              disabled={exportLoading !== null}
+              loading={exportLoading === 'pdf'}
+              onClick={() => handleExport('pdf')}
+            >
+              Export PDF
+            </Button>
+            <Button
+              variant="ghost"
+              disabled={exportLoading !== null}
+              loading={exportLoading === 'markdown'}
+              onClick={() => handleExport('markdown')}
+            >
+              Export Markdown / Notion
+            </Button>
+          </div>
+          {exportMessage && <p className="text-xs text-emerald-200">{exportMessage}</p>}
+          {exportError && <p className="text-xs text-rose-300">{exportError}</p>}
+          <p className="text-[11px] text-white/40">
+            Un export échoue ? Vérifiez votre énergie disponible ou rechargez avant de relancer.
+          </p>
+        </CardContent>
+      </Card>
 
       <Card className="border-white/10 bg-white/5">
         <CardHeader>

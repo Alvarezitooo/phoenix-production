@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { assertActiveSubscription } from '@/lib/subscription';
+import { EnergyError, spendEnergy } from '@/lib/energy';
 import { buildAssessmentReportMarkdown } from '@/lib/aube/report';
 import { renderMarkdownToPdf } from '@/lib/pdf';
 import type { Recommendation } from '@/components/assessment/assessment-form';
@@ -15,15 +15,10 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const { id: assessmentId } = await context.params;
 
   try {
-    await assertActiveSubscription(session.user.id, { requiredPlan: 'PRO' });
+    await spendEnergy(session.user.id, 'export.pdf', { metadata: { module: 'assessment', assessmentId } });
   } catch (error) {
-    if (error instanceof Error) {
-      if (error.message === 'PLAN_UPGRADE_REQUIRED') {
-        return NextResponse.json({ message: 'Le plan Pro est requis pour exporter le rapport Aube.' }, { status: 403 });
-      }
-      if (error.message === 'SUBSCRIPTION_REQUIRED') {
-        return NextResponse.json({ message: 'Abonnement requis pour accéder au rapport.' }, { status: 402 });
-      }
+    if (error instanceof EnergyError && error.code === 'INSUFFICIENT_ENERGY') {
+      return NextResponse.json({ message: "Énergie insuffisante pour exporter le rapport en PDF." }, { status: 402 });
     }
     throw error;
   }

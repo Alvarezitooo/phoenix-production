@@ -7,10 +7,8 @@ declare module 'next-auth' {
       name?: string | null;
       email?: string | null;
       image?: string | null;
-      subscriptionPlan: string;
-      subscriptionStatus: string;
-      currentPeriodEnd?: string;
       preferredCareerMatchId?: string;
+      energyBalance?: number;
     };
   }
 
@@ -18,18 +16,14 @@ declare module 'next-auth' {
     id: string;
     email: string;
     name?: string | null;
-    subscriptionPlan?: string;
-    subscriptionStatus?: string;
-    currentPeriodEnd?: Date;
     preferredCareerMatchId?: string | null;
+    energyBalance?: number;
   }
 }
 
 declare module 'next-auth/jwt' {
   interface JWT {
-    subscriptionPlan?: string;
-    subscriptionStatus?: string;
-    currentPeriodEnd?: string;
     preferredCareerMatchId?: string | null;
+    energyBalance?: number;
   }
 }

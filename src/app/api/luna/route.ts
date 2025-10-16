@@ -4,7 +4,7 @@ import { getAuthSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { generateInterviewCoachResponse } from '@/lib/ai';
 import { logAnalyticsEvent } from '@/lib/analytics';
-import { assertActiveSubscription, assertWithinQuota } from '@/lib/subscription';
+import { EnergyError, spendEnergy } from '@/lib/energy';
 
 const schema = z.object({
   message: z.string().min(1),
@@ -21,8 +21,16 @@ export async function POST(request: Request) {
   try {
     const body = schema.parse(await request.json());
 
-    await assertActiveSubscription(session.user.id);
-    await assertWithinQuota(session.user.id, 'aiMessages');
+    try {
+      await spendEnergy(session.user.id, 'luna.chat', {
+        metadata: { focusArea: body.focusArea, conversationId: body.conversationId },
+      });
+    } catch (error) {
+      if (error instanceof EnergyError && error.code === 'INSUFFICIENT_ENERGY') {
+        return NextResponse.json({ message: 'Énergie insuffisante pour continuer la conversation avec Luna.' }, { status: 402 });
+      }
+      throw error;
+    }
 
     const conversation = body.conversationId
       ? await prisma.conversation.findFirst({
@@ -47,7 +55,11 @@ export async function POST(request: Request) {
     const nextUserMessage = { role: 'user' as const, content: body.message, timestamp: new Date().toISOString() };
     const newHistory = [...history.slice(-40), nextUserMessage];
 
-    const aiMessage = await generateInterviewCoachResponse(newHistory.map(({ role, content }) => ({ role, content })), body.focusArea);
+    const aiMessage = await generateInterviewCoachResponse(
+      newHistory.map(({ role, content }) => ({ role, content })),
+      body.focusArea,
+      { userId: session.user.id },
+    );
 
     const nextAssistantMessage = {
       role: 'assistant' as const,
@@ -77,12 +89,6 @@ export async function POST(request: Request) {
     console.error('[LUNA_CHAT]', error);
     if (error instanceof z.ZodError) {
       return NextResponse.json({ message: 'Invalid payload', issues: error.issues }, { status: 400 });
-    }
-    if (error instanceof Error && error.message === 'SUBSCRIPTION_REQUIRED') {
-      return NextResponse.json({ message: 'Abonnement requis pour discuter avec Luna.' }, { status: 402 });
-    }
-    if (error instanceof Error && error.message === 'QUOTA_EXCEEDED') {
-      return NextResponse.json({ message: 'Quota mensuel atteint pour les messages Luna.' }, { status: 429 });
     }
     return NextResponse.json({ message: 'Failed to process message' }, { status: 500 });
   }

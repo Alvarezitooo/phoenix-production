@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { SignOutButton } from '@/components/auth/sign-out-button';
-import { Rocket } from 'lucide-react';
+import { Rocket, Zap } from 'lucide-react';
 import { MobileMenu, type HeaderNavItem } from '@/components/layout/mobile-menu';
+import { useEnergySnapshot } from '@/hooks/use-energy';
 
 const navItems: HeaderNavItem[] = [
   { href: '/luna', label: 'Luna – Coach IA' },
@@ -18,6 +19,7 @@ const navItems: HeaderNavItem[] = [
 export function SiteHeader() {
   const { status } = useSession();
   const isAuthenticated = status === 'authenticated';
+  const { data: energy, isLoading: energyLoading } = useEnergySnapshot(isAuthenticated);
 
   return (
     <header className="sticky top-0 z-40 w-full backdrop-blur">
@@ -39,7 +41,16 @@ export function SiteHeader() {
         </div>
         <div className="flex items-center gap-3">
           {isAuthenticated ? (
-            <SignOutButton />
+            <div className="flex items-center gap-3">
+              <Link
+                href="/energy"
+                className="inline-flex items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/20"
+              >
+                <Zap className="h-4 w-4" />
+                {energyLoading ? '…' : `${energy?.balance ?? 0} pts`}
+              </Link>
+              <SignOutButton />
+            </div>
           ) : (
             <div className="flex items-center gap-2">
               <Link

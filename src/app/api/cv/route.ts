@@ -3,7 +3,10 @@ import { z } from 'zod';
 import { getAuthSession } from '@/lib/auth';
 import { generateResume } from '@/lib/ai';
 import { prisma } from '@/lib/prisma';
-import { assertActiveSubscription, assertWithinQuota } from '@/lib/subscription';
+import { EnergyError, spendEnergy } from '@/lib/energy';
+import { resolveCvTheme, CvThemeKey } from '@/config/cv';
+import { logAnalyticsEvent } from '@/lib/analytics';
+import { AnalyticsEventType } from '@prisma/client';
 
 const contextSchema = z
   .object({
@@ -14,6 +17,7 @@ const contextSchema = z
     narrative: z.string().optional(),
     quickWins: z.array(z.string().min(3)).optional(),
     developmentFocus: z.array(z.string().min(3)).optional(),
+    element: z.string().optional(),
     selectedMatch: z
       .object({
         title: z.string().min(1),
@@ -49,6 +53,7 @@ const schema = z.object({
   skills: z.array(z.string().min(2)).min(3),
   tone: z.enum(['impact', 'leadership', 'international', 'default']).optional().default('impact'),
   language: z.enum(['fr', 'en']).optional().default('fr'),
+  theme: z.enum(['FEU', 'EAU', 'TERRE', 'AIR', 'ETHER']).optional(),
   context: contextSchema,
 });
 
@@ -60,23 +65,12 @@ export async function POST(request: Request) {
 
   try {
     const payload = schema.parse(await request.json());
-    const subscription = await assertActiveSubscription(session.user.id);
+
     try {
-      await assertWithinQuota(session.user.id, 'resumeGenerations');
+      await spendEnergy(session.user.id, 'cv.generate', { metadata: { module: 'cv-builder' } });
     } catch (error) {
-      if (error instanceof Error && error.message === 'QUOTA_EXCEEDED') {
-        return NextResponse.json(
-          {
-            message:
-              subscription?.subscriptionPlan === 'DISCOVERY'
-                ? 'Le plan Découverte inclut une seule génération de CV. Passez au plan Essentiel pour débloquer le créateur de CV illimité.'
-                : 'Quota atteint pour les générations de CV ce mois-ci.',
-          },
-          { status: 429 },
-        );
-      }
-      if (error instanceof Error && error.message === 'SUBSCRIPTION_REQUIRED') {
-        return NextResponse.json({ message: 'Abonnement requis pour générer un CV.' }, { status: 402 });
+      if (error instanceof EnergyError && error.code === 'INSUFFICIENT_ENERGY') {
+        return NextResponse.json({ message: 'Énergie insuffisante pour générer un CV.' }, { status: 402 });
       }
       throw error;
     }
@@ -92,6 +86,8 @@ export async function POST(request: Request) {
       context: payload.context,
     });
 
+    const themeKey = resolveCvTheme(payload.theme ?? payload.context?.element ?? undefined);
+
     const draft = await prisma.resumeDraft.create({
       data: {
         userId: session.user.id,
@@ -106,6 +102,19 @@ export async function POST(request: Request) {
           nextActions: result.nextActions,
         },
         alignScore: result.alignScore ?? null,
+        element: payload.context?.element ?? null,
+        theme: themeKey,
+      },
+    });
+
+    await logAnalyticsEvent({
+      userId: session.user.id,
+      type: AnalyticsEventType.CV_GENERATED,
+      metadata: {
+        draftId: draft.id,
+        template: payload.template,
+        theme: themeKey,
+        language: payload.language,
       },
     });
 
@@ -117,14 +126,12 @@ export async function POST(request: Request) {
         nextActions: result.nextActions,
       },
       draftId: draft.id,
+      theme: themeKey,
     });
   } catch (error) {
     console.error('[CV_GENERATE]', error);
     if (error instanceof z.ZodError) {
       return NextResponse.json({ message: 'Invalid payload', issues: error.issues }, { status: 400 });
-    }
-    if (error instanceof Error && error.message === 'SUBSCRIPTION_REQUIRED') {
-      return NextResponse.json({ message: 'Abonnement requis pour générer un CV.' }, { status: 402 });
     }
     return NextResponse.json({ message: 'Unable to generate resume' }, { status: 500 });
   }
