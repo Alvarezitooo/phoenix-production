@@ -6,6 +6,7 @@ import { SignOutButton } from '@/components/auth/sign-out-button';
 import { Rocket, Zap } from 'lucide-react';
 import { MobileMenu, type HeaderNavItem } from '@/components/layout/mobile-menu';
 import { useEnergySnapshot } from '@/hooks/use-energy';
+import { ENERGY_COSTS, LETTER_PUBLICATION_COST } from '@/config/energy';
 
 const navItems: HeaderNavItem[] = [
   { href: '/luna', label: 'Luna – Coach IA' },
@@ -20,6 +21,24 @@ export function SiteHeader() {
   const { status } = useSession();
   const isAuthenticated = status === 'authenticated';
   const { data: energy, isLoading: energyLoading } = useEnergySnapshot(isAuthenticated);
+  const energyBalance = energy?.balance ?? 0;
+  const cvCost = ENERGY_COSTS['cv.generate'];
+  const letterTotalCost = ENERGY_COSTS['letters.generate'] + LETTER_PUBLICATION_COST;
+  const approxCv = cvCost > 0 ? Math.floor(energyBalance / cvCost) : 0;
+  const approxLetters = letterTotalCost > 0 ? Math.floor(energyBalance / letterTotalCost) : 0;
+  const approxParts = [] as string[];
+  if (approxCv > 0) {
+    approxParts.push(`${approxCv} CV`);
+  }
+  if (approxLetters > 0) {
+    approxParts.push(`${approxLetters} lettre${approxLetters > 1 ? 's' : ''}`);
+  }
+  const approxLabel = approxParts.length > 0 ? ` (~${approxParts.join(' / ')})` : '';
+  const tooltipText = energyLoading
+    ? undefined
+    : approxParts.length > 0
+    ? `Ton énergie permet environ ${approxParts.join(' / ')}.`
+    : 'Ton énergie alimente les prochaines générations Luna.';
 
   return (
     <header className="sticky top-0 z-40 w-full backdrop-blur">
@@ -45,9 +64,10 @@ export function SiteHeader() {
               <Link
                 href="/energy"
                 className="inline-flex items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/20"
+                title={tooltipText}
               >
                 <Zap className="h-4 w-4" />
-                {energyLoading ? '…' : `${energy?.balance ?? 0} pts`}
+                {energyLoading ? '…' : `${energyBalance} pts${approxLabel}`}
               </Link>
               <SignOutButton />
             </div>

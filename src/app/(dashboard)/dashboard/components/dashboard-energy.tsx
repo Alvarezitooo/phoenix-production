@@ -2,6 +2,7 @@
 
 import { EnergyMeter } from '@/components/ui/energy-meter';
 import { ProgressBar } from '@/components/ui/progress';
+import { ENERGY_COSTS, LETTER_PUBLICATION_COST } from '@/config/energy';
 
 type DashboardEnergyProps = {
   balance: number;
@@ -25,12 +26,23 @@ export function DashboardEnergy({
   const pct = Math.min(Math.round((balance / 200) * 100), 100);
   const streakPercent = bonusThreshold > 0 ? Math.min(Math.round((bonusProgressDays / bonusThreshold) * 100), 100) : 0;
   const displayDaysUntil = daysUntilBonus === 0 && streakDays > 0 ? bonusThreshold : daysUntilBonus;
+  const cvCost = ENERGY_COSTS['cv.generate'];
+  const letterTotalCost = ENERGY_COSTS['letters.generate'] + LETTER_PUBLICATION_COST;
+  const approxCv = cvCost > 0 ? Math.floor(balance / cvCost) : 0;
+  const approxLetters = letterTotalCost > 0 ? Math.floor(balance / letterTotalCost) : 0;
 
   return (
     <div className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/5 px-6 py-8 md:flex-row md:items-center md:justify-between">
       <div className="flex-1 space-y-3 text-center md:text-left">
         <p className="text-xs uppercase tracking-wide text-white/60">Énergie Luna</p>
         <h2 className="text-2xl font-semibold text-white">{balance} points disponibles</h2>
+        {approxCv > 0 || approxLetters > 0 ? (
+          <p className="text-xs text-white/50">
+            ≈ {approxCv > 0 ? `${approxCv} CV` : null}
+            {approxCv > 0 && approxLetters > 0 ? ' / ' : ''}
+            {approxLetters > 0 ? `${approxLetters} lettre${approxLetters > 1 ? 's' : ''}` : null}
+          </p>
+        ) : null}
         <p className="text-sm text-white/60">Streak en cours : {streakDays} jour{streakDays > 1 ? 's' : ''}</p>
         <div>
           <div className="flex items-center justify-between text-xs text-white/50">

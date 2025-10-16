@@ -870,13 +870,16 @@ export function CvBuilder() {
               <Input placeholder="Produit, Analyse, Leadership, Scrum" {...form.register('skills')} />
             </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-2 text-xs text-white/50">
-              <Button type="button" variant="ghost" onClick={handleReset}>
-                Réinitialiser
-              </Button>
-              <Button type="submit" loading={loading}>
-                Générer le CV
-              </Button>
+            <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-white/50">
+              <span className="text-white/60 md:max-w-xs">Chaque génération consomme 3 pts d’énergie (~1 CV). Pense à recharger si besoin.</span>
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="ghost" onClick={handleReset}>
+                  Réinitialiser
+                </Button>
+                <Button type="submit" loading={loading}>
+                  Générer le CV
+                </Button>
+              </div>
             </div>
           </form>
         </CardContent>
