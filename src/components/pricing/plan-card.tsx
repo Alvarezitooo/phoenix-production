@@ -17,6 +17,17 @@ function formatEnergyAmount(amount: number | 'unlimited') {
   return `${amount} points d’énergie`;
 }
 
+function formatApproxConversions(pack: EnergyPack) {
+  const conversions: string[] = [];
+  if (pack.approxConversions?.cvCount) {
+    conversions.push(`≈ ${pack.approxConversions.cvCount} CV`);
+  }
+  if (pack.approxConversions?.letterCount) {
+    conversions.push(`≈ ${pack.approxConversions.letterCount} lettres`);
+  }
+  return conversions.join(' • ');
+}
+
 export function PlanCard({ pack }: { pack: EnergyPack }) {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -86,7 +97,11 @@ export function PlanCard({ pack }: { pack: EnergyPack }) {
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
           {formatEnergyAmount(pack.energyAmount)}
+          {pack.approxConversions && (
+            <p className="mt-2 text-xs text-white/50">{formatApproxConversions(pack)}</p>
+          )}
         </div>
+        {pack.notes && <p className="text-xs text-white/50">{pack.notes}</p>}
       </div>
       <Button className="mt-6 w-full" onClick={() => void handleCheckout()} loading={loading}>
         Choisir ce pack

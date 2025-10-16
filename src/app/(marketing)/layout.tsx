@@ -25,6 +25,11 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
             <h4 className="text-sm font-semibold text-white">Ressources</h4>
             <ul className="space-y-2 text-sm text-white/60">
               <li>
+                <Link href="/vision" className="hover:text-white transition">
+                  Notre vision
+                </Link>
+              </li>
+              <li>
                 <Link href="/faq" className="hover:text-white transition">
                   FAQ
                 </Link>
@@ -41,7 +46,6 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
               </li>
             </ul>
           </div>
-
           <div className="space-y-3">
             <h4 className="text-sm font-semibold text-white">Légal</h4>
             <ul className="space-y-2 text-sm text-white/60">
