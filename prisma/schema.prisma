@@ -17,12 +17,7 @@ model User {
   image                  String?
   createdAt              DateTime            @default(now())
   updatedAt              DateTime            @updatedAt
-  currentPeriodEnd       DateTime?
-  stripeCustomerId       String?
-  stripeSubscriptionId   String?
-  subscriptionPlan       SubscriptionPlan?   @default(DISCOVERY)
-  subscriptionStatus     SubscriptionStatus  @default(INACTIVE)
-  currentPeriodStart     DateTime?
+  stripeCustomerId       String?             // Pour achats de packs énergie
   preferredCareerMatchId String?
   accounts               Account[]
   analyticsEvents        AnalyticsEvent[]
@@ -303,17 +298,16 @@ model WorkerRun {
 }
 
 model BetaCoupon {
-  id           String           @id @default(cuid())
-  code         String           @unique
-  plan         SubscriptionPlan
-  durationDays Int              @default(30)
-  expiresAt    DateTime?
-  redeemedAt   DateTime?
-  redeemedById String?
-  notes        String?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  redeemedBy   User?            @relation(fields: [redeemedById], references: [id])
+  id            String    @id @default(cuid())
+  code          String    @unique
+  energyAmount  Int       @default(100)  // Points d'énergie offerts
+  expiresAt     DateTime?
+  redeemedAt    DateTime?
+  redeemedById  String?
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  redeemedBy    User?     @relation(fields: [redeemedById], references: [id])
 }
 
 model Feedback {
@@ -485,18 +479,7 @@ enum AssessmentStatus {
   FAILED
 }
 
-enum SubscriptionPlan {
-  DISCOVERY
-  ESSENTIAL
-  PRO
-}
-
-enum SubscriptionStatus {
-  INACTIVE
-  ACTIVE
-  PAST_DUE
-  CANCELED
-}
+// Legacy subscription enums removed - Phoenix uses energy-only model now
 
 enum ConversationChannel {
   LUNA

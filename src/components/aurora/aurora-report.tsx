@@ -5,11 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, CheckCircle2, Sparkles } from 'lucide-react';
 
-type Props = {
-  sessionId: string;
-};
-
-type ReportData = {
+export type AuroraReportData = {
   emotionalProfile: string;
   badge: string;
   summary: string;
@@ -19,32 +15,48 @@ type ReportData = {
   badgesUnlocked: number;
 };
 
-export function AuroraReport({ sessionId }: Props) {
-  const [loading, setLoading] = useState(true);
-  const [report, setReport] = useState<ReportData | null>(null);
+type Props = {
+  sessionId: string;
+  initialReport?: AuroraReportData | null;
+};
+
+export function AuroraReport({ sessionId, initialReport = null }: Props) {
+  const [loading, setLoading] = useState(!initialReport);
+  const [report, setReport] = useState<AuroraReportData | null>(initialReport);
 
   useEffect(() => {
-    fetchReport();
-  }, [sessionId]);
+    if (initialReport) return;
+    let isCancelled = false;
 
-  const fetchReport = async () => {
-    try {
-      const res = await fetch('/api/aurora/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId }),
-      });
-
-      if (res.ok) {
+    const fetchReport = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/aurora/report?sessionId=${sessionId}`);
+        if (!res.ok) {
+          throw new Error('Unable to load Aurora report');
+        }
         const data = await res.json();
-        setReport(data.report);
+        if (!isCancelled) {
+          setReport(data.report);
+        }
+      } catch (error) {
+        console.error('Failed to fetch report:', error);
+        if (!isCancelled) {
+          setReport(null);
+        }
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+        }
       }
-    } catch (error) {
-      console.error('Failed to fetch report:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+
+    void fetchReport();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [sessionId, initialReport]);
 
   if (loading) {
     return (
@@ -69,7 +81,7 @@ export function AuroraReport({ sessionId }: Props) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <Card className="border-amber-400/30 bg-gradient-to-br from-amber-500/20 to-orange-500/20">
+      <Card className="border-amber-400/30 bg-gradient-to-br from-amber-500/15 to-orange-500/20">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-2xl text-white">

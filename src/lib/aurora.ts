@@ -251,29 +251,80 @@ export function generateAuroraReport({
 }) {
   const profile = Object.values(EMOTIONAL_PROFILES).find((p) => p.id === emotionalProfile)
 
+  const voile = insights.voile ?? {}
+  const atelier = insights.atelier ?? { questionsAsked: 0 }
+  const dialogue = insights.dialogue ?? { promptImprovement: false }
+
+  const fearResponses: Record<string, string> = {
+    'Perdre mon emploi':
+      "Tu veux garder la main sur ton parcours. Comprendre comment l'IA t'assiste plutôt que te remplacer est un bon premier réflexe.",
+    "Ne pas comprendre comment ça marche":
+      "Tu cherches de la clarté. Plus tu observes son fonctionnement, plus tu pourras décider quand l'utiliser.",
+    'Les dérives éthiques':
+      "Tu as besoin de confiance. Poser des questions et fixer tes propres garde-fous est exactement la bonne posture.",
+    "Être dépassé·e technologiquement":
+      "Tu souhaites rester acteur·rice. Ton avancée pas à pas te redonne du contrôle.",
+  }
+
+  const aspirationNudges: Record<string, string> = {
+    'Gagner du temps sur des tâches répétitives':
+      'Commence par déléguer à Luna une tâche simple cette semaine (compte-rendu, email, plan).',
+    'Apprendre de nouvelles compétences':
+      'Planifie un micro-atelier Rise pour transformer ta curiosité en habitudes d’apprentissage.',
+    'Être plus créatif·ve':
+      'Teste la galerie Lettres ou Aube pour explorer des idées sans pression de résultat.',
+    'Mieux comprendre des sujets complexes':
+      'Active Luna en mode “prof” : demande-lui d’expliquer un sujet en 3 niveaux de profondeur.',
+  }
+
+  const promptTakeaway = dialogue.promptImprovement
+    ? "Tu as vu l'impact d'un prompt précis : contexte + ton + objectif." 
+    : "Tu as remarqué qu'un prompt vague limite le résultat. N'hésite pas à ajouter plus de détails la prochaine fois."
+
+  const summarySegments = [
+    profile?.description,
+    voile.mainFear ? fearResponses[voile.mainFear] : null,
+    voile.aspiration ? aspirationNudges[voile.aspiration] : null,
+  ].filter(Boolean)
+
+  const learnings = [
+    {
+      chamber: 'Le Voile',
+      lesson:
+        voile.firstWord
+          ? `Tu as posé des mots sur ta relation à l'IA (“${voile.firstWord}”). L'Aurora continue quand tu prends ce recul.`
+          : "Tu peux mettre tes émotions en face de l'IA : c'est la clé pour rester acteur.",
+    },
+    {
+      chamber: "L'Atelier",
+      lesson:
+        atelier.questionsAsked > 1
+          ? "Tu as testé plusieurs questions : comparer les réponses t'aide à voir comment l'IA prédit." 
+          : "Tu sais désormais que l'IA prédit des patterns plutôt qu'elle ne 'comprend'.",
+    },
+    {
+      chamber: 'Le Dialogue',
+      lesson: promptTakeaway,
+    },
+  ]
+
+  const nextSteps = [
+    aspirationNudges[voile.aspiration as keyof typeof aspirationNudges] ??
+      "Choisis un cas concret cette semaine pour tester l'IA avec un cadre clair.",
+    dialogue.promptImprovement
+      ? 'Ouvre Luna avec ton prompt amélioré pour continuer à l’affiner.'
+      : "Relis ton dernier prompt : ajoute le ton voulu, la longueur et l'objectif pour gagner en précision.",
+    'Planifie un check-in dans 2 semaines pour noter ce qui a changé dans ta perception de l’IA.',
+  ]
+
   return {
     emotionalProfile: profile?.label || 'En progression',
     badge: profile?.badge || '🌅',
-    summary: `Tu n'es ni pour, ni contre l'IA. Tu es en progression. Plus tu comprendras comment ça marche, plus tu pourras décider comment tu veux l'utiliser — ou pas.`,
-    learnings: [
-      {
-        chamber: 'Le Voile',
-        lesson: 'L\'IA ne te définit pas. Tu peux choisir comment tu l\'utilises.',
-      },
-      {
-        chamber: 'L\'Atelier',
-        lesson: 'L\'IA prédit des patterns, elle ne "comprend" pas vraiment.',
-      },
-      {
-        chamber: 'Le Dialogue',
-        lesson: 'Un bon prompt = contexte + ton + objectif.',
-      },
-    ],
-    nextSteps: [
-      'Teste tes nouvelles compétences avec Luna (ton assistant IA)',
-      'Utilise l\'IA pour créer ton CV ou ta lettre de motivation',
-      'Continue d\'apprendre : l\'IA évolue, toi aussi',
-    ],
+    summary:
+      summarySegments.join(' ') ||
+      "Tu as avancé dans ton rapport à l'IA. Plus tu la comprends, plus tu restes aux commandes.",
+    learnings,
+    nextSteps,
     energyEarned: 11,
     badgesUnlocked: 3,
   }

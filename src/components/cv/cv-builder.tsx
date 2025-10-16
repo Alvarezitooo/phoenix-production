@@ -15,7 +15,6 @@ import { cn } from '@/utils/cn';
 import { useToast } from '@/components/ui/toast';
 import { LunaAssistHint } from '@/components/luna/luna-assist-hint';
 import { logLunaInteraction } from '@/utils/luna-analytics';
-import { CV_THEMES, type CvThemeKey, resolveCvTheme } from '@/config/cv';
 
 type ContextResponse = {
   assessment: {
@@ -106,7 +105,6 @@ const formSchema = z.object({
   skills: z.string().min(5),
   tone: z.enum(['impact', 'leadership', 'international', 'default']).default('impact'),
   language: z.enum(['fr', 'en']).default('fr'),
-  theme: z.enum(['FEU', 'EAU', 'TERRE', 'AIR', 'ETHER']).default('AIR'),
 });
 
 type FormValues = z.input<typeof formSchema>;
@@ -169,11 +167,8 @@ export function CvBuilder() {
       skills: '',
       tone: 'impact',
       language: 'fr',
-      theme: 'AIR',
     },
   });
-
-  const themeSelection = form.watch('theme');
 
   const { fields, append, remove, replace } = useFieldArray({ control: form.control, name: 'experiences' });
 
@@ -200,9 +195,6 @@ export function CvBuilder() {
       setShareState({ isShared: false, shareUrl: null, shareSlug: null });
       return;
     }
-    if (draft.theme) {
-      form.setValue('theme', draft.theme as CvThemeKey, { shouldDirty: false });
-    }
     if (typeof window !== 'undefined' && draft.isShared && draft.shareSlug) {
       setShareState({
         isShared: true,
@@ -222,21 +214,11 @@ export function CvBuilder() {
       if (!response.ok) throw new Error('Impossible de récupérer le contexte Phoenix');
       const data = (await response.json()) as ContextResponse;
       setContext(data);
-      if (data.aubeProfile?.element) {
-        const currentTheme = form.getValues('theme');
-        const defaultTheme = resolveCvTheme(data.aubeProfile.element);
-        if (!currentTheme || currentTheme === 'AIR') {
-          form.setValue('theme', defaultTheme, { shouldValidate: true });
-        }
-      }
       if (data.careerMatches.length > 0) {
         setSelectedMatchId((current) => current ?? data.careerMatches[0].id);
       }
       if (typeof window !== 'undefined' && data.resumeDrafts.length > 0) {
         const latest = data.resumeDrafts[0];
-        if (latest.theme) {
-          form.setValue('theme', latest.theme as CvThemeKey, { shouldDirty: false });
-        }
         if (latest.isShared && latest.shareSlug) {
           setShareState({
             isShared: true,
@@ -331,7 +313,7 @@ export function CvBuilder() {
   }
 
   const updateShare = useCallback(
-    async (share: boolean, themeOverride?: CvThemeKey) => {
+    async (share: boolean) => {
       if (!draftId) {
         showToast({ title: 'Partage indisponible', description: 'Génère un CV et sauvegarde-le avant d’activer le partage.', variant: 'info' });
         return;
@@ -341,7 +323,7 @@ export function CvBuilder() {
         const response = await fetch(`/api/cv/drafts/${draftId}/share`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ share, theme: themeOverride ?? form.getValues('theme') }),
+          body: JSON.stringify({ share }),
         });
 
         if (!response.ok) {
@@ -366,7 +348,7 @@ export function CvBuilder() {
         });
       }
     },
-    [draftId, form, showToast, refreshContext],
+    [draftId, showToast, refreshContext],
   );
 
   const handleCopyShare = useCallback(() => {
@@ -400,7 +382,6 @@ export function CvBuilder() {
           skills: values.skills.split(',').map((item) => item.trim()).filter(Boolean),
           tone: values.tone,
           language: values.language,
-          theme: themeSelection,
           context: {
             strengths: context?.assessment?.strengths,
             workPreferences: context?.assessment?.workPreferences,
@@ -433,9 +414,6 @@ export function CvBuilder() {
       setResumeDraft(data.resume);
       setInsights(data.insights ?? null);
       if (data.draftId) setDraftId(data.draftId);
-      if (data.theme) {
-        form.setValue('theme', data.theme as CvThemeKey, { shouldDirty: false });
-      }
       setIsEditingResume(false);
       setShareState({ isShared: false, shareUrl: null, shareSlug: null });
       showToast({
@@ -521,7 +499,6 @@ export function CvBuilder() {
         skills: (input.skills ?? []).join(', '),
         tone: (input.tone as FormValues['tone']) ?? 'impact',
         language: (input.language as FormValues['language']) ?? 'fr',
-        theme: (details.theme as CvThemeKey) ?? resolveCvTheme(details.element ?? undefined),
       });
       ensureExperienceCount();
 
@@ -578,7 +555,6 @@ export function CvBuilder() {
           draftId,
           content: resumeDraft.trim(),
           alignScore: insights?.alignScore ?? null,
-          theme: form.getValues('theme'),
         }),
       });
       if (!response.ok) {
@@ -825,36 +801,6 @@ export function CvBuilder() {
                     </button>
                   ))}
                 </div>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <label className="text-xs font-semibold uppercase tracking-wider text-white/60">Thème énergétique</label>
-              <div className="grid gap-2 sm:grid-cols-5">
-                {Object.entries(CV_THEMES).map(([key, theme]) => (
-                  <button
-                    type="button"
-                    key={key}
-                    onClick={() => {
-                      form.setValue('theme', key as CvThemeKey, { shouldDirty: true });
-                      if (shareState.isShared) {
-                        void updateShare(true, key as CvThemeKey);
-                      }
-                    }}
-                    className={cn(
-                      'rounded-2xl border px-3 py-3 text-left text-xs transition',
-                      themeSelection === key
-                        ? `${theme.border} bg-white/10 text-white`
-                        : 'border-white/10 bg-white/5 text-white/60',
-                    )}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-white">{theme.label}</span>
-                      {themeSelection === key && <BadgeCheck className={`h-4 w-4 ${theme.accent}`} />}
-                    </div>
-                    <p className="mt-2 text-[11px] text-white/50">Aligné avec les énergies Aube & Rise.</p>
-                  </button>
-                ))}
               </div>
             </div>
 

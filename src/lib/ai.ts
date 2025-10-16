@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
+import { Mistral } from '@mistralai/mistralai';
 import type { AssessmentMode } from '@prisma/client';
 import type { AubeInput } from '@/lib/aube/profile';
 import { LETTER_TONE_LABEL, type LetterTone } from '@/config/letters';
@@ -10,11 +11,13 @@ import { getRecentEmotionalMemories } from '@/lib/memory';
 
 const openAiKey = process.env.OPENAI_API_KEY;
 const geminiKey = process.env.GOOGLE_GENERATIVE_API_KEY;
+const mistralKey = process.env.MISTRAL_API_KEY;
 
 const openai = openAiKey ? new OpenAI({ apiKey: openAiKey }) : null;
 const gemini = geminiKey ? new GoogleGenerativeAI(geminiKey) : null;
+const mistral = mistralKey ? new Mistral({ apiKey: mistralKey }) : null;
 
-type Provider = 'openai' | 'gemini';
+type Provider = 'mistral' | 'openai' | 'gemini';
 
 const PROMPT_VERSION = 'aube_reco_fr_v3';
 
@@ -286,6 +289,20 @@ const FALLBACK_RECOMMENDATIONS: CareerRecommendation[] = [
 ];
 
 async function callProvider(prompt: string, provider: Provider) {
+  if (provider === 'mistral' && mistral) {
+    const model = process.env.MISTRAL_MODEL ?? 'mistral-small-latest';
+    const response = await mistral.chat.complete({
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+    });
+
+    const choice = response.choices?.[0];
+    if (choice?.message?.content) {
+      return choice.message.content;
+    }
+  }
+
   if (provider === 'openai' && openai) {
     const response = await openai.responses.create({
       model: process.env.OPENAI_MODEL ?? 'gpt-4.1-mini',
@@ -341,6 +358,8 @@ function buildRiasecContext(riasecScores: Record<string, number>) {
 
 export async function callWithFallback(prompt: string) {
   const providers: Provider[] = [];
+  // Priorité : Mistral (IA française souveraine) > Gemini > OpenAI
+  if (mistral) providers.push('mistral');
   if (gemini) providers.push('gemini');
   if (openai) providers.push('openai');
 

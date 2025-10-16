@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react';
 import { AuroraVoile } from './aurora-voile';
 import { AuroraAtelier } from './aurora-atelier';
 import { AuroraDialogue } from './aurora-dialogue';
-import { AuroraReport } from './aurora-report';
+import { AuroraReport, type AuroraReportData } from './aurora-report';
 
 type AuroraSession = {
   id: string;
@@ -27,6 +27,7 @@ export function AuroraJourney() {
   const [session, setSession] = useState<AuroraSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [showReport, setShowReport] = useState(false);
+  const [report, setReport] = useState<AuroraReportData | null>(null);
 
   // Charge ou crée la session au montage
   useEffect(() => {
@@ -41,9 +42,12 @@ export function AuroraJourney() {
 
       if (data.session) {
         setSession(data.session);
-        // Si déjà complétée, affiche le rapport
         if (data.session.completedAt) {
           setShowReport(true);
+          await fetchReport(data.session.id);
+        } else {
+          setShowReport(false);
+          setReport(null);
         }
       } else {
         // Crée une nouvelle session
@@ -86,7 +90,14 @@ export function AuroraJourney() {
       });
 
       if (res.ok) {
-        setSession({ ...session, currentChamber: toChamber });
+        setSession((prev) =>
+          prev
+            ? {
+                ...prev,
+                currentChamber: toChamber,
+              }
+            : prev,
+        );
       }
     } catch (error) {
       console.error('Failed to advance chamber:', error);
@@ -103,11 +114,37 @@ export function AuroraJourney() {
         body: JSON.stringify({ sessionId: session.id }),
       });
 
-      if (res.ok) {
-        setShowReport(true);
+      if (!res.ok) {
+        throw new Error('Unable to complete Aurora journey');
       }
+
+      const data = await res.json();
+      setReport(data.report ?? null);
+      setSession((prev) =>
+        prev
+          ? {
+              ...prev,
+              completedAt: new Date().toISOString(),
+            }
+          : prev,
+      );
+      setShowReport(true);
     } catch (error) {
       console.error('Failed to complete journey:', error);
+    }
+  };
+
+  const fetchReport = async (sessionId: string) => {
+    try {
+      const res = await fetch(`/api/aurora/report?sessionId=${sessionId}`);
+      if (!res.ok) {
+        throw new Error('Unable to load Aurora report');
+      }
+      const data = await res.json();
+      setReport(data.report ?? null);
+    } catch (error) {
+      console.error('Failed to fetch Aurora report:', error);
+      setReport(null);
     }
   };
 
@@ -133,7 +170,7 @@ export function AuroraJourney() {
 
   // Si la session est terminée, affiche le rapport
   if (showReport) {
-    return <AuroraReport sessionId={session.id} />;
+    return <AuroraReport sessionId={session.id} initialReport={report} />;
   }
 
   // Affiche la chambre courante

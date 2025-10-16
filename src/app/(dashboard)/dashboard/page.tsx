@@ -81,6 +81,7 @@ export default async function DashboardPage() {
       completed: assessments.length > 0,
       icon: Compass,
       href: '/aube',
+      meta: '≈ 12 min',
     },
     {
       key: 'aurora',
@@ -89,6 +90,7 @@ export default async function DashboardPage() {
       completed: auroraCompleted,
       icon: Sunrise,
       href: '/aurora',
+      meta: '≈ 20 min',
     },
     {
       key: 'letters',
@@ -97,6 +99,7 @@ export default async function DashboardPage() {
       completed: letters.length > 0,
       icon: FileText,
       href: letters.length ? `/letters?draftId=${letters[0].id}` : '/letters',
+      meta: '≈ 10 min',
     },
     {
       key: 'rise',
@@ -107,6 +110,7 @@ export default async function DashboardPage() {
       completed: riseSessions.length > 0,
       icon: MessageCircle,
       href: '/rise',
+      meta: '≈ 8 min',
     },
   ];
 
@@ -458,7 +462,12 @@ export default async function DashboardPage() {
                           <Circle className="h-4 w-4 text-white/30" />
                         )}
                       </div>
-                      <p className="text-xs text-white/60">{step.description}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-white/60">
+                        <span className="inline-flex items-center rounded-full border border-emerald-300/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-200">
+                          {step.meta}
+                        </span>
+                        <span>{step.description}</span>
+                      </div>
                     </div>
                     <ArrowUpRight className="h-4 w-4 text-white/60 transition group-hover:text-emerald-200" />
                   </div>

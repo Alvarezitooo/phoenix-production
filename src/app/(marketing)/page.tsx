@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, Compass, FileText, Sparkles, MessageCircle } from 'lucide-react';
+import { ArrowRight, Compass, FileText, Sparkles, MessageCircle, Shield, Code } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlanCard } from '@/components/pricing/plan-card';
 import { ENERGY_PACKS } from '@/config/energy';
@@ -10,6 +10,8 @@ const modules = [
     description: 'Croisez Big Five, RIASEC et préférences pour révéler des trajectoires sur mesure.',
     href: '/aube',
     includedIn: 'Découverte (1 essai) + Essentiel & Pro',
+    effort: '≈ 12 min',
+    outcome: 'Compatibilités carrières sur mesure',
     icon: Compass,
     accent: 'from-indigo-500/50 to-indigo-400/30',
   },
@@ -18,6 +20,8 @@ const modules = [
     description: 'Générez un CV percutant et compatible ATS aligné sur votre rôle cible en quelques minutes.',
     href: '/cv-builder',
     includedIn: 'Découverte (1 essai) + Essentiel & Pro',
+    effort: '≈ 15 min',
+    outcome: 'CV enrichi + checklist ATS',
     icon: FileText,
     accent: 'from-purple-500/50 to-purple-400/30',
   },
@@ -26,6 +30,8 @@ const modules = [
     description: 'Co-écrivez des lettres motivées ancrées dans vos preuves d’impact et le ton de l’entreprise.',
     href: '/letters',
     includedIn: 'Essentiel (5/mois) & Pro (illimité)',
+    effort: '≈ 10 min',
+    outcome: 'Lettre personnalisée + miroir émotionnel',
     icon: Sparkles,
     accent: 'from-emerald-500/40 to-emerald-400/20',
   },
@@ -34,6 +40,8 @@ const modules = [
     description: 'Préparez vos entretiens avec Luna, questions ciblées et feedback immédiat.',
     href: '/rise',
     includedIn: 'Découverte (3 échanges) + Essentiel & Pro',
+    effort: '≈ 8 min',
+    outcome: 'Script d’entretien + relances ciblées',
     icon: MessageCircle,
     accent: 'from-blue-500/40 to-blue-400/20',
   },
@@ -44,34 +52,42 @@ export default function HomePage() {
     <div className="space-y-20">
       <section className="grid gap-12 lg:grid-cols-2 lg:items-center">
         <div className="space-y-8">
-          <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-200">
-            Phoenix × Luna · coach IA + parcours structurés
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-200">
+              Phoenix × Luna · coach IA + parcours structurés
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full border border-blue-400/40 bg-blue-500/10 px-3 py-1.5 text-xs font-semibold text-blue-200">
+              <span className="text-base">🇫🇷</span>
+              IA Française · Mistral AI
+            </span>
+          </div>
           <h1 className="text-4xl font-semibold tracking-tight text-white md:text-5xl">
             Faites équipe avec Luna pour piloter votre transition professionnelle.
           </h1>
           <p className="max-w-xl text-lg text-white/70">
-            Luna analyse vos diagnostics Aube, modélise vos trajectoires et vous accompagne sur chaque livrable (CV, lettres, préparation d’entretien) au sein des modules Phoenix.
+            Luna, propulsée par <strong className="text-white">Mistral AI</strong>, analyse vos diagnostics Aube, modélise vos trajectoires et vous accompagne sur chaque livrable (CV, lettres, préparation d'entretien). Vos données restent en Europe.
           </p>
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link
               href="/auth/register"
-              className="group inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 transition hover:scale-[1.01] hover:shadow-xl"
+              className="group inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 transition hover:scale-[1.01] hover:shadow-xl"
             >
               Commencer gratuitement
               <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
             </Link>
             <Link
               href="/luna"
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-300/40 bg-white/5 px-5 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-400/10 hover:text-emerald-50"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-200 transition hover:text-emerald-100"
             >
-              Découvrir Luna
+              Voir Luna en action
+              <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
               href="/pricing"
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-white/20 bg-white/10 px-5 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
+              className="inline-flex items-center gap-2 text-sm text-white/70 transition hover:text-white"
             >
-              Voir les offres
+              Parcourir les offres
+              <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
           <div className="space-y-2 text-xs text-white/60">
@@ -148,6 +164,58 @@ export default function HomePage() {
         ))}
       </section>
 
+      <section className="rounded-3xl border border-blue-400/20 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 p-8">
+        <div className="mb-6">
+          <h2 className="text-2xl font-semibold text-white">IA Souveraine & Données Protégées</h2>
+          <p className="mt-2 text-sm text-white/60">
+            Phoenix-Luna fait le choix de l'intelligence artificielle française et de l'hébergement européen
+          </p>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles className="h-5 w-5 text-blue-300" />
+              <h3 className="font-semibold text-white">Mistral AI</h3>
+            </div>
+            <p className="text-sm text-white/70">
+              Nous utilisons <strong className="text-white">Mistral AI</strong>, champion français de l'IA générative.
+              Pas de dépendance aux géants américains.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Shield className="h-5 w-5 text-emerald-300" />
+              <h3 className="font-semibold text-white">Données en Europe</h3>
+            </div>
+            <p className="text-sm text-white/70">
+              Vos données sont hébergées en <strong className="text-white">Union Européenne</strong> (Amsterdam).
+              Conformité RGPD garantie.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Code className="h-5 w-5 text-purple-300" />
+              <h3 className="font-semibold text-white">Transparent & Éthique</h3>
+            </div>
+            <p className="text-sm text-white/70">
+              Nous documentons nos choix technologiques et respectons votre vie privée.
+              Pas de revente de données, jamais.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-wrap items-center gap-4 text-xs text-white/50">
+          <span>Technologie : Mistral AI</span>
+          <span>•</span>
+          <span>Hébergement : Railway EU (Amsterdam)</span>
+          <span>•</span>
+          <span>Développé dans le Var (83)</span>
+        </div>
+      </section>
+
       <section className="rounded-3xl border border-white/10 bg-white/5 p-8">
         <div className="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
@@ -190,12 +258,20 @@ export default function HomePage() {
                     <module.icon className="h-10 w-10 text-white/70" />
                   </div>
                 </CardHeader>
-                <CardContent className="relative flex items-center justify-between text-sm text-white/60">
-                  <span>Inclus : {module.includedIn}</span>
-                  <span className="inline-flex items-center gap-2 text-emerald-200">
-                    Explorer
-                    <ArrowRight className="h-4 w-4" />
-                  </span>
+                <CardContent className="relative flex flex-col gap-3 text-sm text-white/70">
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-emerald-200">
+                    <span className="inline-flex items-center rounded-full border border-emerald-300/40 bg-emerald-500/10 px-2.5 py-1 uppercase tracking-wide">
+                      {module.effort}
+                    </span>
+                    <span className="text-white/70">{module.outcome}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-white/60">
+                    <span>Inclus : {module.includedIn}</span>
+                    <span className="inline-flex items-center gap-2 text-emerald-200">
+                      Explorer
+                      <ArrowRight className="h-4 w-4" />
+                    </span>
+                  </div>
                 </CardContent>
               </Card>
             </Link>
